@@ -923,3 +923,39 @@ def test_retry_in_the_same_tool_family_is_recorded(proj, bad, good, signal):
 def test_unrelated_or_quiet_commands_are_not_paired(proj, bad, good):
     record(proj, fail_ok(1, bad, good))
     assert queue(proj) == []
+
+
+def test_apply_crlf_without_trailing_newline_adds_no_bare_cr(proj):
+    old = (HEADER + "## Naming\n- Use kebab-case names\n- a").replace("\n", "\r\n").encode()
+    assert not old.endswith(b"\n")
+    new = apply_to(proj, old).read_bytes()
+    assert new == old + b"\r\n" + NEW_LINE.encode() and not new.endswith(b"\r")
+    rules_check(proj)
+
+
+def test_apply_finds_a_heading_behind_a_bom(proj):
+    old = ("﻿## Naming\n- Use kebab-case names\n\n## Gates\n- run the gate\n").encode("utf-8")
+    assert old.startswith(b"\xef\xbb\xbf")
+    new = apply_to(proj, old).read_bytes()
+    assert new.startswith(b"\xef\xbb\xbf## Naming") and delta(old, new) == NEW_LINE.encode()
+
+
+def test_apply_refuses_when_the_written_bytes_do_not_verify(proj, monkeypatch):
+    path = proj / ".harness/standards.md"
+    before = path.read_bytes()
+    record(proj, [user("No, use tabs")])
+    (e,) = queue(proj)
+
+    def corrupt(fd, data):
+        i = data.index(b"Use tabs")
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data[:i] + b"X" + data[i + 1:])
+    monkeypatch.setattr(pr, "write_fd", corrupt)
+    out = subprocess_free_apply(proj, e["id"])
+    assert out == 1
+    assert path.read_bytes() == before and queue(proj)[0]["status"] == "queued"
+    assert not list((proj / ".harness").glob(".tmp*"))
+
+
+def subprocess_free_apply(proj, pid):
+    return pr.cmd_apply(str(proj), pid, "standards.md", "## Naming", NEW_LINE)
