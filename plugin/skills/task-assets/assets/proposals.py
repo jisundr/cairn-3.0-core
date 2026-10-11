@@ -68,6 +68,7 @@ QUIET_CMDS = {"grep", "egrep", "fgrep", "rg", "diff", "cmp", "test", "[", "find"
               "type", "ls", "cat"}
 NOISE_LINE_RE = re.compile(r"^\W*rtk\b", re.I)
 ID_RE = re.compile(r"[0-9a-f]{12}\Z")
+EVIDENCE_RE = re.compile(r" \| evidence: (?:path|cmd|correction):\S")
 TS_FMT = "%Y-%m-%dT%H:%M:%SZ"
 
 
@@ -502,6 +503,10 @@ def refuse(reason):
     return 1
 
 
+def rule_body(line):
+    return line.split(" | evidence: ")[0].split(" | applies when: ")[0].strip()
+
+
 def split_physical(data):
     """Physical lines of a file: split on b"\\n" only. Returns (lines, ends_with_newline)."""
     parts = data.split(b"\n")
@@ -518,14 +523,22 @@ def insert_position(text, heading):
     """Index at which a new bullet goes in section `heading`, or a refusal reason."""
     at = None
     fenced = False
+    trail = {}  # heading level -> name, for the headings above this one
     for i, raw in enumerate(text):
         if raw.lstrip().startswith("```"):
             fenced = not fenced
         elif not fenced and raw.rstrip() == heading:
             at = i
             break
+        elif not fenced and raw.startswith("#"):
+            level = len(raw) - len(raw.lstrip("#"))
+            trail = {k: v for k, v in trail.items() if k < level}
+            trail[level] = raw.lstrip("#").strip().lower().split(" ")[0]
     if at is None:
         return "section not found: " + heading
+    own = len(heading) - len(heading.lstrip("#"))
+    if any(v in BLOCKED_SECTIONS for k, v in trail.items() if k < own):
+        return "section is inside Gates or Release"
     last, fenced, j = None, False, at + 1
     while j < len(text):
         raw = text[j]
@@ -561,6 +574,8 @@ def cmd_apply(root, pid, fname, section, line):
     heading = section.strip()
     if not heading.startswith("##") or heading.lstrip("#").strip().lower().split(" ")[0] in BLOCKED_SECTIONS:
         return refuse("section must be a ## heading other than Gates or Release")
+    if not EVIDENCE_RE.search(line):
+        return refuse("line needs typed evidence: path:, cmd: or correction:")
     checker = rules_checker()
     if checker is not None:
         parsed = checker.parse_rule_line(line + "\n")
@@ -584,7 +599,7 @@ def write_rule(directory, entry, root, name, heading, line):
     target = path.resolve()
     lines, ends = split_physical(target.read_bytes())
     text = [physical_text(x) for x in lines]
-    if line in text:
+    if rule_body(line) in [rule_body(x) for x in text]:
         return refuse("line already present")
     if len(lines) + 1 > HARNESS_CAPS[name]:
         return refuse("%s is at its %d-line cap" % (name, HARNESS_CAPS[name]))

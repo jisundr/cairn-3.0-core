@@ -263,22 +263,31 @@ def test_apply_adds_exactly_one_line_after_last_bullet(proj):
     assert rules.returncode == 0 and "0 malformed" in rules.stdout
 
 
+EV = " | evidence: correction:2026-10-11 x"
+OK = "- ok" + EV
+
+
 @pytest.mark.parametrize("kwargs,reason", [
     ({"line": "- Use tabs\n- and more"}, "one physical"),
+    ({"line": "- Use tabs"}, "typed evidence"),
+    ({"line": "- Use tabs | evidence: because I said so"}, "typed evidence"),
+    ({"line": "- Use tabs | evidence: correction:"}, "typed evidence"),
     ({"line": "Use tabs"}, "one physical"),
-    ({"line": "- Use kebab-case names"}, "already present"),
+    ({"line": "- Use kebab-case names" + EV}, "already present"),
     ({"line": "- x | evidence: correction:2026-13-45 bad"}, "malformed"),
-    ({"line": "- ok", "section": "## Nope"}, "section not found"),
-    ({"line": "- ok", "section": "## Gates"}, "Gates or Release"),
-    ({"line": "- ok", "section": "## Release"}, "Gates or Release"),
-    ({"line": "- ok", "file": "other.md"}, "must be one of"),
-    ({"line": "- ok", "file": "../x/standards.md"}, "must be one of"),
+    ({"line": OK, "section": "## Nope"}, "section not found"),
+    ({"line": OK, "section": "## Gates"}, "Gates or Release"),
+    ({"line": OK, "section": "## Release"}, "Gates or Release"),
+    ({"line": OK, "section": "### Sub"}, "inside Gates or Release"),
+    ({"line": OK, "file": "other.md"}, "must be one of"),
+    ({"line": OK, "file": "../x/standards.md"}, "must be one of"),
 ])
 def test_apply_refusals_leave_everything_untouched(proj, kwargs, reason):
+    (proj / ".harness/standards.md").write_text(STANDARDS + "\n### Sub\n- nested gate\n")
     record(proj, [user("No, use tabs")])
     (e,) = queue(proj)
     before = harness_bytes(proj)
-    args = dict({"line": "- ok"}, **kwargs)
+    args = dict({"line": OK}, **kwargs)
     r = apply(proj, e["id"], **args)
     assert r.returncode == 1 and reason in r.stdout
     assert harness_bytes(proj) == before and queue(proj)[0]["status"] == "queued"
@@ -290,11 +299,11 @@ def test_apply_refuses_at_line_cap_and_unknown_or_resolved_id(proj):
     assert len(path.read_text().splitlines()) == 30
     record(proj, [user("No, use tabs")])
     (e,) = queue(proj)
-    r = apply(proj, e["id"], "- one more", section="## Run", file="environment.md")
+    r = apply(proj, e["id"], "- one more" + EV, section="## Run", file="environment.md")
     assert r.returncode == 1 and "cap" in r.stdout
-    assert apply(proj, "000000000000", "- ok").returncode == 1
+    assert apply(proj, "000000000000", OK).returncode == 1
     run("mark", "--root", proj, e["id"], "dropped")
-    assert apply(proj, e["id"], "- ok").returncode == 1
+    assert apply(proj, e["id"], OK).returncode == 1
 
 
 def test_caps_mirror_budget_gate():
@@ -748,7 +757,7 @@ def test_old_pos_files_are_swept_with_expiry(proj):
 @pytest.mark.parametrize("bad", ["../../evil", "ABCDEF123456", "0123456789a", "0123456789abc", ""])
 def test_ids_are_validated_before_use(proj, bad):
     assert run("mark", "--root", proj, bad, "dropped").returncode == 1
-    r = apply(proj, bad, "- ok")
+    r = apply(proj, bad, OK)
     assert r.returncode == 1 and "12 hex" in r.stdout
 
 
