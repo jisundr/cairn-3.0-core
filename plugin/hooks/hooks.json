@@ -11,7 +11,8 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"" }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh\"" },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/signals.sh\" count", "timeout": 5 }
         ]
       }
     ],
@@ -33,7 +34,8 @@
       {
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/stop-mc.sh\"" },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-marker.sh\" sweep" }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-marker.sh\" sweep" },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/signals.sh\" record", "timeout": 5 }
         ]
       }
     ]
