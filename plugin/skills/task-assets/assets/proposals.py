@@ -38,9 +38,18 @@ FIELDS = ("schema", "id", "type", "signal", "context", "status", "session", "tim
 CUE_RE = re.compile(
     r"\bno\b|\bdon'?t\b|\bdo not\b|\bstop\b|\binstead\b|\bwrong\b|\bthat'?s not\b|\bnot that\b"
     r"|\bshould be\b|\bi said\b|\bi told you\b|\bi meant\b|\bactually\b", re.I)
-SECRET_RE = re.compile(
-    r"key|secret|token|passw|credential|sk-[\w-]{16,}|\bgh[pousr]_\w+|AKIA\w{12,}|\b[A-Za-z0-9_-]{32,}\b",
-    re.I)
+SECRET_CI = [
+    r"://[^/\s]*@", r"bearer", r"authorization", r"\bbasic\s+[A-Za-z0-9+/=]{8,}", r"\bpwd\b",
+    r"\bxox[a-z]-", r"\b(?:rk|pk|sk)_", r"hooks\.slack\.com", r"[?&](?:sig|token|key|secret|signature)=",
+    r"secret", r"token", r"passw", r"credential", r"api[ _-]?key|secret[ _-]?key", r"private[ _-]?key",
+    r"\b(?:access|auth|ssh|signing|encryption)[ _-]?key", r"\bkey\s*[:=]",
+    r"sk-[\w-]{16,}", r"\bgh[pousr]_\w+", r"github_pat_", r"BEGIN [A-Z ]*PRIVATE", r"\beyJ[\w-]{5,}\.",
+    r"(?<![\w-])-p\S", r"(?<![\w-])-u\s*\S+:\S+", r"[A-Za-z0-9_+-]{32,}", r"[A-Za-z0-9+/]{16,}={1,2}",
+    r"\b(?=\w*[A-Za-z])(?=\w*\d)\w{6,}[!@#$%^&*]",
+]
+SECRET_CS = [r"AKIA\w{12,}",
+             r"\b(?=[A-Za-z0-9]*[a-z])(?=[A-Za-z0-9]*[A-Z])(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{10,}\b"]
+SECRET_RE = re.compile("|".join(["(?i:%s)" % p for p in SECRET_CI] + SECRET_CS))
 TS_FMT = "%Y-%m-%dT%H:%M:%SZ"
 
 
@@ -62,6 +71,11 @@ def parse_ts(text):
 def clean_ts(text):
     dt = parse_ts(text) if isinstance(text, str) else None
     return stamp(dt) if dt else stamp(now())
+
+
+def is_secret(text):
+    """True when text looks like it carries a credential; such text is dropped, never redacted."""
+    return bool(SECRET_RE.search(text))
 
 
 def collapse(text, limit):
@@ -178,7 +192,7 @@ def extract(lines, session_time):
         kind = e.get("type")
         if kind == "user":
             text = user_text(e)
-            if text and is_correction(text) and not SECRET_RE.search(text):
+            if text and is_correction(text) and not is_secret(text):
                 yield {"type": "correction", "signal": collapse(text, SIGNAL_MAX), "context": "",
                        "time": clean_ts(e.get("timestamp") or session_time)}
         content = (e.get("message") or {}).get("content")
@@ -199,9 +213,11 @@ def extract(lines, session_time):
                               clean_ts(e.get("timestamp") or session_time))
                 else:
                     if failed and cmd != failed[0] and not b.get("is_error"):
-                        ctx = collapse("%s | worked: %s" % (collapse(failed[1], 100), cmd), CONTEXT_MAX)
-                        if not SECRET_RE.search(failed[0] + ctx):
-                            yield {"type": "failure", "signal": failed[0], "context": ctx, "time": failed[2]}
+                        short = " ".join(failed[0].split()[:2])
+                        ctx = collapse("%s | worked: %s" % (collapse(failed[1], 100),
+                                                            " ".join(cmd.split()[:2])), CONTEXT_MAX)
+                        if not is_secret(failed[0] + " " + cmd + " " + ctx):
+                            yield {"type": "failure", "signal": short, "context": ctx, "time": failed[2]}
                     failed = None
 
 
