@@ -215,37 +215,55 @@ def _glob_tokens(glob):
 
 
 def _glob_match(glob, text):
-    """Full match of text against glob, tracking the set of reachable
-    positions per token so the time stays polynomial for any pattern."""
+    """Full match of text against glob. The reachable positions are a flag
+    array and each token is one linear sweep, so the time is
+    O(tokens * len(text)) for any pattern."""
     n = len(text)
-    reach = {0}
+    reach = bytearray(n + 1)
+    reach[0] = 1
+    lo, hi = 0, 0
     for kind, val in _glob_tokens(glob):
-        nxt = set()
-        for p in reach:
-            if kind == "lit":
-                if p < n and text[p] == val:
-                    nxt.add(p + 1)
-            elif kind == "one":
-                if p < n and text[p] != "/":
-                    nxt.add(p + 1)
-            elif kind == "class":
-                if p < n and val.fullmatch(text[p]):
-                    nxt.add(p + 1)
-            elif kind == "star":
-                q = p
-                nxt.add(q)
-                while q < n and text[q] != "/":
-                    q += 1
-                    nxt.add(q)
-            elif kind == "dstar":
-                nxt.update(range(p, n + 1))
-            else:  # dslash: nothing, or anything ending in a slash
-                nxt.add(p)
-                nxt.update(q + 1 for q in range(p, n) if text[q] == "/")
-        if not nxt:
+        nxt = bytearray(n + 1)
+        if kind in ("lit", "one", "class"):
+            for p in range(lo, min(hi, n - 1) + 1):
+                if not reach[p]:
+                    continue
+                c = text[p]
+                if kind == "lit":
+                    ok = c == val
+                elif kind == "one":
+                    ok = c != "/"
+                else:
+                    ok = val.fullmatch(c) is not None
+                if ok:
+                    nxt[p + 1] = 1
+        elif kind == "star":  # from each reachable position up to the next "/"
+            live = False
+            for q in range(lo, n + 1):
+                if q > hi and not live:
+                    break
+                if q <= hi and reach[q]:
+                    live = True
+                if live:
+                    nxt[q] = 1
+                    if q < n and text[q] == "/":
+                        live = False
+        elif kind == "dstar":  # from the first reachable position to the end
+            nxt[lo:] = b"\x01" * (n + 1 - lo)
+        else:  # dslash: nothing, or anything ending in a slash
+            live = False
+            for q in range(lo, n + 1):
+                if q <= hi and reach[q]:
+                    live = True
+                    nxt[q] = 1
+                if live and q < n and text[q] == "/":
+                    nxt[q + 1] = 1
+        if not any(nxt):
             return False
+        lo = nxt.index(1)
+        hi = nxt.rindex(1)
         reach = nxt
-    return n in reach
+    return bool(reach[n])
 
 
 def _static_prefix(glob):
