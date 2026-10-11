@@ -1,0 +1,3 @@
+The four .harness/*.md files are byte copies of cairn-2.0 at a63d818 (jisundr/cairn-2.0).
+CLAUDE.md and docs/tasks/ are small hand-written stand-ins in the 2.0 shape (no schema field, scalar depends_on).
+tools/upgrade_check.py copies this directory to a temp dir, runs the 3.0 scripts and hooks over it, and checks .harness/ is byte-identical afterwards.
