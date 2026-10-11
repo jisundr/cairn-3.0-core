@@ -2,7 +2,7 @@
   "name": "cairn",
   "displayName": "Cairn",
   "version": "0.51.16",
-  "description": "A lean, on-demand, non-invasive development workflow for Claude Code.",
+  "description": "A lean, on-demand, non-invasive development workflow for Claude Code: rules with evidence, corrections queued as candidates, nothing applied without your approval.",
   "author": {
     "name": "Jayson De los Reyes",
     "email": "jisun.delosreyes@gmail.com"
