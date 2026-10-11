@@ -23,6 +23,7 @@ EV_DELIM = " | evidence: "
 TR_DELIM = " | applies when: "
 LEGACY_SHOWN = 10
 GLOB_CHARS = "*?["
+GLOB_MAX = 200
 
 
 def parse_rule_line(line):
@@ -83,6 +84,8 @@ def trigger_error(trigger):
             items = [i.strip() for i in trigger[len(head):].split(",")]
             if not items or not all(items):
                 return "empty item in " + head
+            if any(len(i) > GLOB_MAX for i in items):
+                return "glob over %d chars" % GLOB_MAX
             if kind_list:
                 bad = [i for i in items if i not in KINDS]
                 if bad:
@@ -181,32 +184,68 @@ def _char_class(glob, i):
     return rx, j + 1
 
 
-def _glob_regex(glob):
+def _glob_tokens(glob):
+    """Tokenize a glob; adjacent * and ** runs collapse into one wildcard."""
     glob = glob.strip()
     if glob.endswith("/") or not _has_glob(glob):
         glob = glob.rstrip("/") + "/**"
-    out = ""
+    toks = []
     i = 0
     while i < len(glob):
         if glob.startswith("**/", i):
-            out += "(?:.*/)?"
+            toks.append(("dslash", None))
             i += 3
-        elif glob.startswith("**", i):
-            out += ".*"
-            i += 2
         elif glob[i] == "*":
-            out += "[^/]*"
-            i += 1
+            deep = glob.startswith("**", i)
+            i += 2 if deep else 1
+            if toks and toks[-1][0] in ("star", "dstar"):
+                deep = deep or toks[-1][0] == "dstar"
+                toks.pop()
+            toks.append(("dstar" if deep else "star", None))
         elif glob[i] == "?":
-            out += "[^/]"
+            toks.append(("one", None))
             i += 1
         elif glob[i] == "[":
             rx, i = _char_class(glob, i)
-            out += rx
+            toks.append(("class", re.compile(rx)))
         else:
-            out += re.escape(glob[i])
+            toks.append(("lit", glob[i]))
             i += 1
-    return re.compile(out)
+    return toks
+
+
+def _glob_match(glob, text):
+    """Full match of text against glob, tracking the set of reachable
+    positions per token so the time stays polynomial for any pattern."""
+    n = len(text)
+    reach = {0}
+    for kind, val in _glob_tokens(glob):
+        nxt = set()
+        for p in reach:
+            if kind == "lit":
+                if p < n and text[p] == val:
+                    nxt.add(p + 1)
+            elif kind == "one":
+                if p < n and text[p] != "/":
+                    nxt.add(p + 1)
+            elif kind == "class":
+                if p < n and val.fullmatch(text[p]):
+                    nxt.add(p + 1)
+            elif kind == "star":
+                q = p
+                nxt.add(q)
+                while q < n and text[q] != "/":
+                    q += 1
+                    nxt.add(q)
+            elif kind == "dstar":
+                nxt.update(range(p, n + 1))
+            else:  # dslash: nothing, or anything ending in a slash
+                nxt.add(p)
+                nxt.update(q + 1 for q in range(p, n) if text[q] == "/")
+        if not nxt:
+            return False
+        reach = nxt
+    return n in reach
 
 
 def _static_prefix(glob):
@@ -251,7 +290,7 @@ def _glob_hits(glob, path):
         lit = lit[:-3]
     if glob.rstrip("/") == whole or whole == lit or whole.startswith(lit + "/"):
         return True
-    if _glob_regex(glob).fullmatch(path.rstrip("/")) or _glob_regex(glob).fullmatch(path.rstrip("/") + "/x"):
+    if _glob_match(glob, path.rstrip("/")) or _glob_match(glob, path.rstrip("/") + "/x"):
         return True
     if path.endswith("/"):
         pdir = path.rstrip("/")
