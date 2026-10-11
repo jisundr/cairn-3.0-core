@@ -86,6 +86,17 @@ RUN_RE = re.compile(r"[A-Za-z0-9]{12,}")
 ENTROPY_RE = re.compile(r"[A-Za-z0-9+_-]{16,}")
 NAME_RE = re.compile(r"[A-Za-z][A-Za-z0-9._-]*\Z")
 WRAPPERS = {"sudo", "time", "nohup", "env", "rtk"}
+SUB_RE = re.compile(r"[a-z]+(?:-[a-z]+)*\Z")
+SUBCMDS = frozenset(
+    "install add remove test run build start stop status push pull commit checkout clone fetch merge rebase"
+    " log diff init ci update upgrade publish deploy up down ps exec logs apply plan get list show create"
+    " delete config version help lint format check fmt dev serve watch prune worktree stash tag branch"
+    " reset restore cleanup migrate seed generate compile bundle pack link unlink doctor".split())
+# commands whose first argument is often a secret: the name is stored alone
+NAME_ONLY = frozenset("echo printf print login su passwd vault set export kinit htpasswd ssh-add gpg openssl"
+                      " security aws gcloud az pass".split())
+DIGIT_NAME_RE = re.compile(r"(?:python|pip|pypy|ruby|perl|php|gcc|clang|node|py)\d+(?:\.\d+)*\Z"
+                           r"|(?:sha\d+sum|md5sum|base64)\Z")
 FAMILIES = [{"npm", "pnpm", "yarn", "bun", "npx", "pnpx"}, {"pip", "pip3", "pipx", "uv"},
             {"python", "python3"}, {"node", "nodejs", "deno", "bun"}, {"docker", "podman"},
             {"make", "gmake"}]
@@ -377,16 +388,18 @@ def cmd_name(cmd):
     """Plain command name of a normalised command, or None when it is not one."""
     toks = norm_cmd(cmd).split()
     name = toks[0].rsplit("/", 1)[-1] if toks else ""
+    if re.search(r"\d", name) and not DIGIT_NAME_RE.match(name):
+        return None
     return name if NAME_RE.match(name) and token_ok(name) else None
 
 
 def brief(cmd):
-    """`<command> <first argument>` when the argument is plainly a word, flag or file name, else the command."""
+    """`<command> <first argument>` for a known subcommand or value-less flag, else the command name alone."""
     name = cmd_name(cmd)
     toks = norm_cmd(cmd).split()
-    if name and len(toks) > 1:
+    if name and name not in NAME_ONLY and len(toks) > 1:
         arg = toks[1]
-        if arg == arg.strip(EDGE) and not re.search(r"[/@=:]", arg) and token_ok(arg):
+        if (SUB_RE.match(arg) and arg in SUBCMDS) or (FLAG_RE.match(arg) and token_ok(arg)):
             return name + " " + arg
     return name
 
@@ -435,7 +448,8 @@ def extract(lines, session_time):
                     lines_ = [x for x in body.splitlines()[1:] if x.strip()]
                     err = lines_[0] if lines_ else body.splitlines()[0]
                     quiet = QUIET_CMDS & (set(first_tokens(cmd)) | {cmd_name(cmd)})
-                    failed = None if quiet or cmd_name(cmd) in (None, "cd") or NOISE_LINE_RE.match(err) else (
+                    odd = not all(token_ok(x) for x in norm_cmd(cmd).split())
+                    failed = None if quiet or odd or cmd_name(cmd) in (None, "cd") or NOISE_LINE_RE.match(err) else (
                         cmd, err, clean_ts(e.get("timestamp") or session_time))
                 else:
                     if failed and cmd != failed[0] and not b.get("is_error") and related(failed[0], cmd):
