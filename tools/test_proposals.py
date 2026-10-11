@@ -131,7 +131,7 @@ def test_incremental_offset_reads_only_new_lines(proj):
         fh.write(json.dumps(user("Stop, wrong branch")) + "\n")
     run("record", "--root", proj, "--session", "s1", "--transcript", tp)
     assert len(queue(proj)) == 2 and all(e["count"] == 1 for e in queue(proj))
-    pos = (proj / ".cairn/proposals/.pos-s1").read_text().split()
+    pos = pr.pos_path(proj / ".cairn/proposals", "s1").read_text().split()
     assert int(pos[0]) == tp.stat().st_size and pos[1] == "2"
 
 
@@ -734,7 +734,7 @@ def test_huge_line_without_newline_stays_bounded_and_is_not_rescanned(proj):
     secs, rss = map(float, out.stdout.split())
     rss_mb = rss / (1 << 20 if os.uname().sysname == "Darwin" else 1 << 10)
     assert secs < 2 and rss_mb < 100, (secs, rss_mb)
-    off, _ = (proj / ".cairn/proposals/.pos-s").read_text().split()[:2]
+    off, _ = pr.pos_path(proj / ".cairn/proposals", "s").read_text().split()[:2]
     assert int(off) == big.stat().st_size
     with open(big, "ab") as fh:
         fh.write(b"\n" + json.dumps(user("No, use tabs")).encode() + b"\n")
@@ -847,7 +847,7 @@ def test_session_id_cannot_escape_the_queue_directory(proj):
     assert len(pos) == 1 and "/" not in pos[0] and " " not in pos[0]
     assert not (proj / "evil").exists() and not (proj.parent / "evil").exists()
     record(proj, [user("No, use tabs")], session="x" * 300, name="u.jsonl")
-    assert max(len(p.name) for p in d.glob(".pos-*")) <= len(".pos-") + 64
+    assert max(len(p.name) for p in d.glob(".pos-*")) <= len(".pos-") + 48 + 1 + 8
 
 
 def test_old_pos_files_are_swept_with_expiry(proj):
@@ -959,3 +959,53 @@ def test_apply_refuses_when_the_written_bytes_do_not_verify(proj, monkeypatch):
 
 def subprocess_free_apply(proj, pid):
     return pr.cmd_apply(str(proj), pid, "standards.md", "## Naming", NEW_LINE)
+
+
+def test_session_ids_that_sanitise_alike_get_distinct_pos_files(proj):
+    d = proj / ".cairn/proposals"
+    names = {pr.pos_path(d, s).name for s in ("a/b", "a_b", "a b", "x" * 60, "x" * 61)}
+    assert len(names) == 5 and all(len(n) <= len(".pos-") + 57 for n in names)
+    record(proj, [user("No, use tabs")], session="a/b")
+    record(proj, [user("Stop, wrong branch")], session="a_b", name="u.jsonl")
+    assert len(list(d.glob(".pos-*"))) == 2
+
+
+def test_stale_tmp_part_files_are_swept(proj):
+    d = proj / ".cairn/proposals"
+    d.mkdir(parents=True)
+    old, fresh = d / ".tmp.abc123.part", d / ".tmp.def456.part"
+    old.write_text("x")
+    fresh.write_text("y")
+    when = time.time() - 2 * 3600
+    os.utime(old, (when, when))
+    record(proj, [user("No, use tabs")])
+    assert not old.exists() and fresh.exists()
+
+
+@pytest.mark.skipif(pr.fcntl is None, reason="needs flock")
+def test_record_gives_up_on_a_held_lock_before_the_hook_timeout(proj):
+    import fcntl
+    d = proj / ".cairn/proposals"
+    pr.ensure_dir(d)
+    tp = write(proj / "t.jsonl", [user("No, use tabs")])
+    fd = os.open(str(d / ".lock"), os.O_CREAT | os.O_RDWR, 0o600)
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    try:
+        t = time.monotonic()
+        r = run("record", "--root", proj, "--session", "s1", "--transcript", tp)
+        took = time.monotonic() - t
+    finally:
+        os.close(fd)
+    assert r.returncode == 0 and r.stdout == "" and took < 4, took
+    assert queue(proj) == []
+    assert run("record", "--root", proj, "--session", "s1", "--transcript", tp).returncode == 0
+    assert len(queue(proj)) == 1  # the offset did not move, so the next Stop retries
+
+
+def test_announced_marker_is_made_private(proj):
+    d = proj / ".cairn/proposals"
+    d.mkdir(parents=True)
+    (d / ".announced").write_text("sid\n")
+    os.chmod(d / ".announced", 0o644)
+    record(proj, [user("No, use tabs")])
+    assert (d / ".announced").stat().st_mode & 0o777 == 0o600
