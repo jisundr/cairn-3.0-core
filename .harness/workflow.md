@@ -4,7 +4,7 @@
 - Direct commits to `main`, no feature branches observed
 
 ## Commits / PR
-- One artifact per commit + its `docs/REGISTRY.md` line (if it adds an agent) — never a sweep. Version and `CHANGELOG.md` change on release only (epic 07), not per commit
+- One artifact per commit + its `docs/REGISTRY.md` line (if it adds an agent) — never a sweep. Version and `CHANGELOG.md` change on release only via `/cairn-release`, not per commit
 - `mission-control/` is a plain directory in core (no submodule): edit it, run `python tools/sync_mission_control.py` to refresh `plugin/mission-control/`; both copies are excluded from the budget gate
 
 ## Gates
