@@ -18,7 +18,7 @@ echo "selftest: $p passed, $f failed"
 exit $((f>0))
 fi
 command -v jq &>/dev/null || exit 0
-IFS=$'\t' read -r si tp cwd <<<"$(jq -r '[.session_id,.transcript_path,.cwd]|map(.//"")|@tsv' 2>&-)"
+IFS=$'\t' read -r si cwd tp <<<"$(jq -r '[.session_id,.cwd,.transcript_path]|map(.//"")|@tsv' 2>&-)"
 [[ -n $si && -n $cwd ]] || exit 0
 grep -qsF '<!-- cairn:start -->' "$cwd/CLAUDE.md" || exit 0
 d=$cwd/.cairn/proposals;mkdir -p "$d" 2>&- || exit 0
