@@ -9,9 +9,9 @@ Open an issue with the bug template. Include your cairn version and the output o
 ## Making a change
 
 1. Fork and clone: `git clone <your fork>`.
-2. Install the dev tools: Python ≥ 3.10, `jq`, and `pip install pytest`.
+2. Install the dev tools: Python ≥ 3.11, `jq`, and `pip install pytest`.
 3. Make your change in `plugin/`. Everything else at the root is for developing cairn and never ships.
-4. Follow the per-commit rules in [`CLAUDE.md`](CLAUDE.md): one artifact per commit. The version and `CHANGELOG.md` change on release only, so leave both alone in a PR.
+4. Follow the per-commit rules in [`CLAUDE.md`](CLAUDE.md): one artifact per commit. The version and `CHANGELOG.md` change in the release PR only, so leave both alone in any other PR.
 5. Run the gate before opening a PR:
 
    ```
@@ -20,11 +20,15 @@ Open an issue with the bug template. Include your cairn version and the output o
    for s in plugin/hooks/*.sh; do "$s" --selftest; done
    ```
 
-CI (`.github/workflows/ci.yml`) runs this gate, the tests and strict plugin validation on every push and PR; run the gate locally first so the PR starts green. `claude plugin validate . --strict` is worth running too.
+CI (`.github/workflows/ci.yml`) runs this gate, the tests, the hook selftests and strict plugin validation on every push and PR; run the gate locally first so the PR starts green. `claude plugin validate . --strict` is worth running too.
+
+The tests include the upgrade test: `tools/upgrade_check.py` runs the 3.0 `session-start.sh` and `signals.sh` hooks, `rules-check.py` and `state_schema.py` over a copy of a 2.0 `.harness/` (`tools/fixtures/upgrade-2.0`) and fails if any file changes. Run it by hand against a real repo with `python tools/upgrade_check.py --repo <dir>`; add `--doctor` to also run `/cairn-doctor` through `claude`. The other hooks, `proposals.py apply` and `mark`, `/cairn-setup`, `/cairn-retro` and `--doctor` are not covered in CI.
+
+On macOS, `plugin/skills/diagrams/stale.sh --selftest` fails: it uses GNU `touch -d`. CI runs it on Ubuntu, and the loop above covers hooks only, so this does not block a local run.
 
 ## Trying your change
 
-Install your working copy as a local marketplace:
+Install your working copy as a local marketplace. If the released `cairn-marketplace` is installed, remove it first (`/plugin marketplace remove cairn-marketplace`); otherwise the add fails with "Cannot add marketplace 'cairn-marketplace': its source doesn't match its extraKnownMarketplaces entry".
 
 ```
 /plugin marketplace add /path/to/your/clone

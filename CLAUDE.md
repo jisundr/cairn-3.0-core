@@ -6,7 +6,7 @@ The plugin itself lives in `plugin/` — `.claude-plugin/marketplace.json` point
 
 ## What cairn is
 
-cairn 2.0 is a Claude Code plugin carrying a lean, on-demand, non-invasive development workflow: it leaves one marker line in a consuming project's `CLAUDE.md`, reads everything else on demand, does nothing until the project's `.harness/` has told it how the project works, and can be removed without a trace.
+cairn is a Claude Code plugin carrying a lean, on-demand, non-invasive development workflow: it leaves one marker line in a consuming project's `CLAUDE.md`, reads everything else on demand, does nothing until the project's `.harness/` has told it how the project works, and can be removed without a trace.
 
 ## Source of truth
 
@@ -15,7 +15,7 @@ cairn 2.0 is a Claude Code plugin carrying a lean, on-demand, non-invasive devel
 ## Discipline for every change
 
 - **One artifact per commit**, plus its `docs/REGISTRY.md` line (if it adds an agent). Never a sweep across many files.
-- **Version and `CHANGELOG.md` change on release only** (epic 07), not per commit. Installs re-sync on version change, so a release bumps `plugin/.claude-plugin/plugin.json`.
+- **Version and `CHANGELOG.md` change on release only**, not per commit. Installs re-sync on version change, so a release bumps `plugin/.claude-plugin/plugin.json`.
 - **Run the gate after every file**: `python tools/budget.py`. Fix findings before writing anything else.
 - **Chain a scripted edit to its commit.** When a multi-occurrence rename or similar edit runs via a script rather than `Edit`, chain the edit step and the `git commit` with `&&` (or `set -e`) so a failed edit can never still produce a commit — a shell that keeps going past a failed step is how an empty, misleading commit lands.
 - **No mandate language** (`MUST`, `ALWAYS`, `NEVER`, `MANDATORY`, `NON-NEGOTIABLE`, a `HARD REQUIREMENTS` heading) in `plugin/agents/`, `plugin/skills/`, `plugin/commands/`, or `plugin/hooks/`. Say how a rule is enforced instead — e.g. "`reviewer` has no `Write` tool."

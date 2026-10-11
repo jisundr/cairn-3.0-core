@@ -109,7 +109,7 @@ def headroom(measured, hard, unit="B"):
 IGNORED_DIR_PARTS = (".git", "__pycache__", ".pytest_cache", "node_modules")
 
 # Paths the gate does not walk. Both are the same mission-control sources.
-_MC_REASON = "decided 2026-10-11; leaves core in epic 05"
+_MC_REASON = "decided 2026-10-11; stays in core for 3.0.0"
 GATE_EXCLUDED = {
     "mission-control": _MC_REASON,
     "plugin/mission-control": _MC_REASON,

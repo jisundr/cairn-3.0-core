@@ -69,7 +69,13 @@ A `key_info` that starts with `approved` reads as planned until work begins and 
 
 ## 2.0 files
 
-A STATE.md written under cairn 2.0 validates unchanged: no `schema` key reads as 1, and only `goal` and `key_info` are required. No rewrite is needed; the forms below produce warnings, never errors.
+A STATE.md written under cairn 2.0 validates unchanged when its frontmatter stays within the 1,024 B cap and it has `goal` and `key_info`: no `schema` key reads as 1, and only those two are required. No rewrite is needed; the forms below produce warnings, never errors.
+
+Real 2.0 files that do not meet that bar get an error. Each has a one-line fix:
+
+- Frontmatter over 1,024 B: trim the long fields, or move detail into the body below the closing `---`.
+- No frontmatter (the file does not open with `---`, or the block is never closed): add the opening and closing `---` lines around the `key: value` lines.
+- `goal` or `key_info` missing: add the key, with one line of text.
 
 - `depends_on` and `flags` written as a scalar instead of a list. Deprecated. Rewrite to the list form:
   - `depends_on: 03` becomes `depends_on: [03]`
@@ -81,7 +87,7 @@ A STATE.md written under cairn 2.0 validates unchanged: no `schema` key reads as
 - Files lack `schema`. Optional edit: add `schema: 1` as the first key. Nothing breaks if it is left out.
 - Over-long fields and blocks between 800 and 1,024 bytes warn; see Limits.
 
-A file that is missing `goal` or `key_info`, has an unclosed frontmatter block, is over 1,024 bytes, or gives `paths`, `out_of_scope` or other list fields as a scalar (or a scalar field as a non-empty list) does not validate. Fix it by adding the missing field, closing the block with `---`, trimming the fields, or using the right shape.
+The errors above are the complete list for a 2.0 file, plus shapes 2.0 did not use: a `schema` that is not a positive integer, `paths`, `out_of_scope` or another non-deprecated list field given as a scalar (write `[a, b]`), and a scalar field given as a non-empty list.
 
 ## Reference reader
 

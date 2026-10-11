@@ -8,7 +8,7 @@ Notes from personal experience working with AI coding agents.
 Always do evals and test, and monitor the size of your instruction files (CLAUDE.md, agent/skill files, etc.). Bloated instructions get loaded into every session whether they're needed or not, and can blow up your usage limit.
 
 **Examples**
-In cairn 2.0, every file an agent might load into context has a hard byte/line cap, checked by a script (`tools/budget.py`) instead of relying on memory or convention:
+In cairn, every file an agent might load into context has a hard byte/line cap, checked by a script (`tools/budget.py`) instead of relying on memory or convention:
 - Agent bodies, `SKILL.md` files, command files, hook scripts, and harness files each get their own soft/hard size limit — e.g. an agent body warns past 3000 B and fails past 4096 B.
 - Agent/skill/command *descriptions* are loaded into every session regardless of use, so their combined total gets its own separate ceiling (2500 B soft / 3000 B hard).
 - The same script flags leftover `TODO`/placeholder text, mandate language (`MUST`, `ALWAYS`, `NEVER`) that bloats instructions without adding enforcement, and other structural issues.
@@ -27,7 +27,7 @@ In cairn 2.0, every file an agent might load into context has a hard byte/line c
 Not every instruction is needed for every task. Loading everything up front wastes context and budget on content that's irrelevant to what's actually being asked — load only what the current step needs, when it needs it.
 
 **Examples**
-cairn 2.0 is built around this idea end to end:
+cairn is built around this idea end to end:
 - In a consuming project, cairn leaves a single marker line in that project's `CLAUDE.md` — nothing else. The rest (`.harness/architecture.md`, `standards.md`, etc.) is only read when a skill actually needs it.
 - Inside a skill, `SKILL.md` stays small and holds a "Load when" table instead of the full content, e.g. `plugin/skills/review-pr/SKILL.md` points to `reference/draft-template.md` with the note "Drafting findings ... the format to present" — that reference file is only pulled in at that step, not at skill start.
 - `tools/budget.py` enforces this split by checking skill *reference* files are actually named in their skill's "Load when" table (an orphaned reference file that's never linked is flagged as a bug — content sitting in the repo but not reachable on demand).
