@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that a 2.0 repo's harness survives the 3.0 hooks and scripts untouched.
+"""Check that a 2.0 repo's harness survives the 3.0 session-start and signals hooks and scripts untouched.
 
     python tools/upgrade_check.py [--repo DIR] [--doctor]
 
