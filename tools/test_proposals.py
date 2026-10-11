@@ -591,3 +591,49 @@ def test_lock_file_fallback_without_fcntl(proj, monkeypatch):
             with pr.locked(d, wait=0.1):
                 pass
     assert not (d / ".lock.excl").exists()
+
+
+def _peak_rss_script(path):
+    return ("import importlib.util, resource, sys, time\n"
+            "spec = importlib.util.spec_from_file_location('p', %r)\n"
+            "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+            "t = time.monotonic()\n"
+            "m.record(sys.argv[1], 's', sys.argv[2])\n"
+            "print(time.monotonic() - t, resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)\n" % str(path))
+
+
+@pytest.mark.skipif(shutil.which("truncate") is None, reason="truncate missing")
+def test_huge_line_without_newline_stays_bounded_and_is_not_rescanned(proj):
+    big = proj / "big.jsonl"
+    subprocess.run(["truncate", "-s", "1G", str(big)], check=True)
+    out = subprocess.run(["python3", "-c", _peak_rss_script(SCRIPT), str(proj), str(big)],
+                         capture_output=True, text=True, timeout=60)
+    secs, rss = map(float, out.stdout.split())
+    rss_mb = rss / (1 << 20 if os.uname().sysname == "Darwin" else 1 << 10)
+    assert secs < 2 and rss_mb < 100, (secs, rss_mb)
+    off, _ = (proj / ".cairn/proposals/.pos-s").read_text().split()[:2]
+    assert int(off) == big.stat().st_size
+    with open(big, "ab") as fh:
+        fh.write(b"\n" + json.dumps(user("No, use tabs")).encode() + b"\n")
+    pr.record(proj, "s", big)
+    assert [e["signal"] for e in queue(proj)] == ["No, use tabs"]
+
+
+def test_oversized_line_followed_by_lines_skips_to_next_newline(proj, monkeypatch):
+    monkeypatch.setattr(pr, "SCAN_MAX", 300)
+    monkeypatch.setattr(pr, "BLOCK", 64)
+    tp = write(proj / "t.jsonl", [user("x " * 500), user("No, use tabs")])
+    pr.record(proj, "s", tp)
+    pr.record(proj, "s", tp)
+    assert [e["signal"] for e in queue(proj)] == ["No, use tabs"]
+
+
+def test_fifo_and_directory_transcripts_return_at_once(proj):
+    fifo = proj / "pipe"
+    os.mkfifo(fifo)
+    for target in (fifo, proj):
+        t = time.monotonic()
+        r = subprocess.run(["python3", str(SCRIPT), "record", "--root", str(proj), "--session", "s",
+                            "--transcript", str(target)], capture_output=True, text=True, timeout=10)
+        assert r.returncode == 0 and r.stdout == "" and time.monotonic() - t < 2
+    assert queue(proj) == []

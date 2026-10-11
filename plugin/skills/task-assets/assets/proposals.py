@@ -40,6 +40,7 @@ NOTE_MAX = 120
 LOCK_WAIT = 10.0
 LOCK_STALE = 30.0
 SCAN_MAX = 2_000_000
+BLOCK = 1 << 20
 SEEN_MAX = 10
 JACCARD = 0.7
 HARNESS_CAPS = {"architecture.md": 40, "standards.md": 40, "environment.md": 30, "workflow.md": 30}
@@ -287,28 +288,58 @@ def read_pos(directory, session):
         return 0, 0
 
 
+def scan(transcript, offset):
+    """Complete lines from `offset`: (bytes, new offset), or None for a non-regular file.
+
+    Reads in BLOCK-sized pieces and never holds more than SCAN_MAX bytes. A line with
+    no newline within SCAN_MAX is skipped in bounded blocks;
+    at end of file the offset moves to the end so the next Stop does not rescan it.
+    """
+    st = os.stat(transcript)
+    if not stat.S_ISREG(st.st_mode):
+        return None
+    if st.st_size < offset:
+        offset = 0
+    with open(transcript, "rb") as fh:
+        fh.seek(offset)
+        buf = bytearray()
+        while len(buf) < SCAN_MAX:
+            blk = fh.read(min(BLOCK, SCAN_MAX - len(buf)))
+            if not blk:
+                break
+            buf += blk
+        end = buf.rfind(b"\n") + 1
+        if end:
+            return bytes(buf[:end]), offset + end
+        if len(buf) < SCAN_MAX:  # a partial last line: wait for its newline
+            return b"", offset
+        pos = offset + len(buf)
+        del buf
+        while True:
+            blk = fh.read(BLOCK)
+            if not blk:
+                return b"", pos
+            i = blk.find(b"\n")
+            if i >= 0:
+                return b"", pos + i + 1
+            pos += len(blk)
+
+
 def record(root, session, transcript):
     directory = qdir(root)
     directory.mkdir(parents=True, exist_ok=True)
     sweep(directory)
     offset, recorded = read_pos(directory, session)
-    size = os.path.getsize(transcript)
-    if size < offset:
-        offset = 0
-    with open(transcript, "rb") as fh:
-        fh.seek(offset)
-        chunk = fh.read(SCAN_MAX)
-        end = chunk.rfind(b"\n") + 1
-        if end == 0 and len(chunk) == SCAN_MAX:  # one line over the cap: skip it
-            rest = fh.readline()
-            if rest.endswith(b"\n"):
-                chunk, end = b"", SCAN_MAX + len(rest)
-    text = chunk[:end].decode("utf-8", errors="replace")
-    signals = list(extract(text.splitlines(), stamp(now())))
+    got = scan(transcript, offset)
+    if got is None:
+        return
+    chunk, new_offset = got
+    lines = [x.decode("utf-8", errors="replace") for x in chunk.split(b"\n")]
+    signals = list(extract(lines, stamp(now())))
     signals.sort(key=lambda s: s["type"] != "correction")
     with locked(directory):
         recorded = merge(directory, session, signals, recorded)
-        (directory / (".pos-" + session)).write_text("%d %d\n" % (offset + end, recorded))
+        (directory / (".pos-" + session)).write_text("%d %d\n" % (new_offset, recorded))
 
 
 def merge(directory, session, signals, recorded):
