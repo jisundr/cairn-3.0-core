@@ -28,7 +28,7 @@ On macOS, `plugin/skills/diagrams/stale.sh --selftest` fails: it uses GNU `touch
 
 ## Trying your change
 
-Install your working copy as a local marketplace:
+Install your working copy as a local marketplace. If the released `cairn-marketplace` is installed, remove it first (`/plugin marketplace remove cairn-marketplace`); otherwise the add fails with "Cannot add marketplace 'cairn-marketplace': its source doesn't match its extraKnownMarketplaces entry".
 
 ```
 /plugin marketplace add /path/to/your/clone
