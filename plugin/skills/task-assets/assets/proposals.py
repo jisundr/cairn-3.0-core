@@ -39,6 +39,8 @@ CONTEXT_MAX = 200
 NOTE_MAX = 120
 FAIL_MAX = 2
 LOCK_WAIT = 10.0
+RECORD_WAIT = 3.0  # the Stop hook times out at 5 s
+TMP_MAX_AGE = 3600
 LOCK_STALE = 30.0
 SCAN_MAX = 2_000_000
 BLOCK = 1 << 20
@@ -170,7 +172,10 @@ def signal_id(text):
 
 
 def pos_path(directory, session):
-    return directory / (".pos-" + re.sub(r"[^\w.-]", "_", str(session))[:64])
+    """Sanitised id (<= 48) plus 8 hex of sha1 of the raw id, so distinct sessions never share a file."""
+    raw = str(session)
+    tag = hashlib.sha1(raw.encode("utf-8", errors="replace")).hexdigest()[:8]
+    return directory / (".pos-" + re.sub(r"[^\w.-]", "_", raw)[:48] + "-" + tag)
 
 
 def qdir(root):
@@ -183,6 +188,8 @@ def ensure_dir(directory):
     for d in (directory.parent, directory):
         with contextlib.suppress(OSError):
             os.chmod(d, 0o700)
+    with contextlib.suppress(OSError):  # written by the count hook with the shell's umask
+        os.chmod(directory / ".announced", 0o600)
 
 
 def write_private(path, text):
@@ -275,6 +282,10 @@ def sweep(directory, at=None):
         for p in directory.glob(".pos-*"):
             with contextlib.suppress(OSError):
                 if at.timestamp() - p.stat().st_mtime > EXPIRE_DAYS * 86400:
+                    p.unlink()
+        for p in directory.glob(".tmp.*.part"):  # left by a write that died before its rename
+            with contextlib.suppress(OSError):
+                if at.timestamp() - p.stat().st_mtime > TMP_MAX_AGE:
                     p.unlink()
     for e in entries(directory):
         if e.get("status") == "queued":
@@ -494,7 +505,7 @@ def record(root, session, transcript):
     chunk, new_offset = got
     lines = [x.decode("utf-8", errors="replace") for x in chunk.split(b"\n")]
     signals = list(extract(lines, stamp(now())))
-    with locked(directory):
+    with locked(directory, wait=RECORD_WAIT):
         recorded, fails = merge(directory, session, signals, recorded, fails)
         write_private(pos_path(directory, session), "%d %d %d\n" % (new_offset, recorded, fails))
 
