@@ -247,6 +247,11 @@ def _glob_hits(glob, path):
     path = _norm(path)
     if path == "":
         return True
+    lit, whole = glob.rstrip("/"), path.rstrip("/")
+    if lit.endswith("/**"):
+        lit = lit[:-3]
+    if glob.rstrip("/") == whole or whole == lit or whole.startswith(lit + "/"):
+        return True
     if _glob_regex(glob).fullmatch(path.rstrip("/")) or _glob_regex(glob).fullmatch(path.rstrip("/") + "/x"):
         return True
     if path.endswith("/"):
