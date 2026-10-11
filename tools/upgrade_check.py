@@ -6,18 +6,25 @@
 Copies DIR's .harness/, CLAUDE.md and docs/tasks/ (default: the committed
 fixture tools/fixtures/upgrade-2.0) into a temp dir, hashes every file, runs
 the 3.0 scripts over the copy with CLAUDE_PLUGIN_ROOT pointing at a temp
-plugin dir whose version is 3.0.0, then hashes again. It checks that:
+plugin dir whose version is read from plugin/.claude-plugin/plugin.json,
+then hashes again. It checks that:
 
   - rules-check.py exits 0, reports no malformed rule, and counts rules
-    without evidence as legacy;
+    without evidence as legacy (a harness with no bullet rules passes as
+    "0 rules"; one that has rules but reports none as legacy is a miss);
   - state_schema.py passes over docs/tasks/ (skipped when there are none);
-  - session-start.sh prints "cairn updated 0.51.16 -> 3.0.0" once;
+  - session-start.sh prints "cairn updated 0.51.16 -> <version>" once;
   - signals.sh record queues one proposal for a one-correction transcript
     and count announces it;
   - every copied file is byte-identical afterwards, and nothing new appears
     outside .cairn/.
 
---doctor also runs /cairn-doctor through `claude` against the copy.
+Exercised: hooks/session-start.sh, hooks/signals.sh (record and count),
+task-assets/assets/rules-check.py and tools/state_schema.py. Not covered in
+CI: hooks/stop-mc.sh, hooks/subagent-marker.sh, hooks/allow-plugin-read.sh,
+proposals.py apply and mark, /cairn-setup, /cairn-retro. --doctor runs
+/cairn-doctor through `claude` by hand; CI does not.
+
 Exit 0 when every check holds, 1 with one line per miss. The jq-dependent
 steps are skipped when jq is absent and CI is unset; with CI set they fail.
 """
@@ -34,7 +41,7 @@ from pathlib import Path
 CORE = Path(__file__).resolve().parent.parent
 PLUGIN = CORE / "plugin"
 FIXTURE = CORE / "tools" / "fixtures" / "upgrade-2.0"
-TARGET = "3.0.0"
+TARGET = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())["version"]
 PREVIOUS = "0.51.16"
 SKIP_DIRS = {".cairn"}
 CORRECTION = '{"type":"user","message":{"content":"No, use tabs here"}}\n'
@@ -48,6 +55,18 @@ def digest(root):
         if p.is_file() and not (set(rel.parts) & SKIP_DIRS):
             out[rel.as_posix()] = hashlib.sha256(p.read_bytes()).hexdigest()
     return out
+
+
+def judge_counts(counts):
+    """(note, miss) for a rules-check counts dict; exactly one is non-empty."""
+    total = sum(counts.values())
+    if counts["malformed"]:
+        return "", f"rules-check.py reports {counts['malformed']} malformed rules"
+    if total == 0:
+        return "rules-check.py: exit 0, 0 rules (0 legacy), 0 malformed, nothing failed", ""
+    if counts["legacy"] == 0:
+        return "", f"rules-check.py reports {total} rules and none legacy for a 2.0 harness"
+    return f"rules-check.py: exit 0, {counts['legacy']} legacy, 0 malformed, nothing failed", ""
 
 
 def run(cmd, env, cwd=None, stdin=None, timeout=300):
@@ -94,13 +113,8 @@ def check(repo, doctor=False):
         if r.returncode != 0:
             misses.append(f"rules-check.py exited {r.returncode}: {r.stderr.strip()[:120]}")
         else:
-            counts = json.loads(r.stdout)["counts"]
-            if counts["malformed"]:
-                misses.append(f"rules-check.py reports {counts['malformed']} malformed rules")
-            elif counts["legacy"] == 0:
-                misses.append("rules-check.py reports no legacy rules for a 2.0 harness")
-            else:
-                notes.append(f"rules-check.py: exit 0, {counts['legacy']} legacy, 0 malformed, nothing failed")
+            note, miss = judge_counts(json.loads(r.stdout)["counts"])
+            (misses if miss else notes).append(miss or note)
 
         if tasks.is_dir() and any((proj / "docs" / "tasks").rglob("STATE.md")):
             r = run([sys.executable, str(CORE / "tools" / "state_schema.py"), str(proj / "docs" / "tasks")], env)
