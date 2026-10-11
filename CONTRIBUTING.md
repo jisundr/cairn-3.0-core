@@ -8,10 +8,10 @@ Open an issue with the bug template. Include your cairn version and the output o
 
 ## Making a change
 
-1. Fork, clone with submodules: `git clone --recurse-submodules <your fork>`.
+1. Fork and clone: `git clone <your fork>`.
 2. Install the dev tools: Python ≥ 3.10, `jq`, and `pip install pytest`.
 3. Make your change in `plugin/`. Everything else at the root is for developing cairn and never ships.
-4. Follow the per-commit rules in [`CLAUDE.md`](CLAUDE.md): one artifact per commit, a `CHANGELOG.md` entry, and a version bump in `plugin/.claude-plugin/plugin.json`.
+4. Follow the per-commit rules in [`CLAUDE.md`](CLAUDE.md): one artifact per commit. The version and `CHANGELOG.md` change on release only, so leave both alone in a PR.
 5. Run the gate before opening a PR:
 
    ```
@@ -31,7 +31,7 @@ Install your working copy as a local marketplace:
 /plugin install cairn@cairn-marketplace
 ```
 
-Bump the version after each edit so the install picks it up.
+The version changes on release only, so re-run the install to pick up your edits.
 
 ## Token budget
 
