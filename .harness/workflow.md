@@ -4,10 +4,8 @@
 - Direct commits to `main`, no feature branches observed
 
 ## Commits / PR
-- One artifact per commit + its `docs/REGISTRY.md` line (if it adds an agent) + `CHANGELOG.md` entry — never a sweep
-- `CHANGELOG.md` is main-thread-owned by convention — no agent can write repo root (`scribe` is restricted to `docs/`)
-- Bump `plugin/.claude-plugin/plugin.json` version on every commit, including docs-only — the marketplace re-syncs a consuming project's install on version change, not on content diff, so an un-bumped change never reaches installs. Patch for docs/fixes, minor for a new capability.
-- A `mission-control` change lands as its own commit in the root submodule, pushed. Then register it here as a separate commit: bump the gitlink, run `python tools/sync_mission_control.py` to refresh `plugin/mission-control/`, bump the version, add the `CHANGELOG.md` entry
+- One artifact per commit + its `docs/REGISTRY.md` line (if it adds an agent) — never a sweep. Version and `CHANGELOG.md` change on release only (epic 07), not per commit
+- `mission-control/` is a plain directory in core (no submodule): edit it, run `python tools/sync_mission_control.py` to refresh `plugin/mission-control/`; both copies are excluded from the budget gate
 
 ## Gates
 - `python tools/budget.py` clean after every file; `python tools/sync_mission_control.py --check` clean at phase end
