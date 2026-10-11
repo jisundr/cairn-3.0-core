@@ -74,3 +74,40 @@ def test_plugin_version_matches_the_changelog_heading():
     assert headings and manifest["version"] == headings[0]
     parts = manifest["version"].split(".")
     assert len(parts) == 3 and all(p.isdigit() for p in parts)
+
+
+def _manifest_version():
+    return json.loads((ROOT / "plugin/.claude-plugin/plugin.json").read_text())["version"]
+
+
+def _first_heading():
+    for ln in (ROOT / "CHANGELOG.md").read_text().splitlines():
+        if ln.startswith("## "):
+            return ln[3:].split(" ")[0]
+
+
+def test_notice_uses_the_real_plugin_version():
+    assert _manifest_version() == _first_heading()
+    assert uc.TARGET == _manifest_version()
+    notes, misses = uc.check(uc.FIXTURE)
+    if any("session-start.sh" in n for n in notes):
+        assert f"cairn updated {uc.PREVIOUS} -> {_manifest_version()}" in "\n".join(notes)
+    assert misses == []
+
+
+def test_harness_with_no_rules_passes_as_zero_rules():
+    counts = {"verified": 0, "stale": 0, "unverifiable": 0, "legacy": 0, "malformed": 0}
+    note, miss = uc.judge_counts(counts)
+    assert miss == "" and "0 rules" in note
+
+
+def test_harness_with_rules_and_no_legacy_is_a_miss():
+    counts = {"verified": 3, "stale": 0, "unverifiable": 0, "legacy": 0, "malformed": 0}
+    note, miss = uc.judge_counts(counts)
+    assert note == "" and "none legacy" in miss
+
+
+def test_harness_with_legacy_rules_passes():
+    counts = {"verified": 0, "stale": 0, "unverifiable": 0, "legacy": 2, "malformed": 0}
+    note, miss = uc.judge_counts(counts)
+    assert miss == "" and "2 legacy" in note
