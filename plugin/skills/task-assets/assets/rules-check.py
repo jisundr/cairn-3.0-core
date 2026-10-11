@@ -103,10 +103,9 @@ def _check_evidence(evidence, root):
         value = evidence[5:].strip()
         if not value or " " in value or value.startswith("/") or ".." in value.split("/"):
             return "malformed", "bad path evidence"
-        if _has_glob(value):
+        ok = (root / value).exists()
+        if not ok and _has_glob(value):
             ok = any(True for _ in root.glob(value.replace("[^", "[!")))
-        else:
-            ok = (root / value).exists()
         return ("verified", "") if ok else ("stale", "no match for " + value)
     if evidence.startswith("cmd:"):
         manifest, sep, name = evidence[4:].strip().partition("#")
