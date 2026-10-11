@@ -221,6 +221,31 @@ def test_character_classes_in_triggers():
     assert not hit("a[!x]b", "a/b")
 
 
+def bracket_repo(tmp_path):
+    (tmp_path / "app/[id]").mkdir(parents=True)
+    (tmp_path / "app/[id]/page.tsx").write_text("")
+    return tmp_path
+
+
+def test_literal_bracket_path_matches_trigger(tmp_path):
+    bracket_repo(tmp_path)
+    for glob in ("app/[id]/page.tsx", "app/[id]", "app/[id]/", "app/[id]/**"):
+        root = harness(tmp_path, standards="## A\n- R | applies when: paths:%s\n" % glob)
+        out = subprocess.run([sys.executable, str(CHECKER), "--root", str(root), "--select", "app/[id]/page.tsx"],
+                             capture_output=True, text=True)
+        assert "loads 1 of 1" in out.stdout, glob
+
+
+def test_escaped_bracket_and_class_still_match_in_trigger():
+    def hit(glob, path):
+        return rc.matches({"trigger": "paths:" + glob}, [path])
+    assert hit("app/[[]id]/page.tsx", "app/[id]/page.tsx")
+    assert hit("app/[[]id]/**", "app/[id]/page.tsx")
+    assert hit("app/[ab]/page.tsx", "app/a/page.tsx")
+    assert not hit("app/[ab]/page.tsx", "app/c/page.tsx")
+    assert not hit("app/[id]/page.tsx", "app/x/page.tsx")
+
+
 def test_character_class_evidence_matches_trigger_semantics(tmp_path):
     (tmp_path / "src").mkdir()
     (tmp_path / "src/c.py").write_text("")
