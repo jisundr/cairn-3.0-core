@@ -586,6 +586,7 @@ BARE_LEAKS = [
     "no, the pass is rover2020", "no, user bob pass bobspw", "no, the creds are bob rover",
     "no, username alice", "no, use 482913", "no, it is 192.168.1.20", "no, 555-123-4567",
     "no, 123-45-6789", "no, the combination is left twice", "no, pin 4829", "no, the totp is 4829",
+    "no, bind to 10.0.0.5", "no, the code is 4829",
 ]
 KEEP = [
     "no, use pnpm not npm", "don't mock the database in these tests", "put the helper in src/utils/date.ts",
