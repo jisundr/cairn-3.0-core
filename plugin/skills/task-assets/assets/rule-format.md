@@ -19,7 +19,7 @@ Untyped text is unverifiable. A bad date or an empty value is malformed.
 ## Trigger
 
 - `always`, or no trigger: loads for every task.
-- `paths:<glob>[, <glob>]`: loads when a task path or changed file matches a glob. `*` and `?` stay within one directory, `[abc]`, `[a-z]` and `[!abc]` match one character, `**` crosses directories; a bare directory means everything under it. A leading `./` is ignored.
+- `paths:<glob>[, <glob>]`: loads when a task path or changed file matches a glob. `*` and `?` stay within one directory, `[abc]`, `[a-z]` and `[!abc]` match one character, `**` crosses directories; a bare directory means everything under it. A leading `./` is ignored. A literal `[` is written `[[]`; an existing path also matches as written.
 - `kind:<k>[, <k>]`: `research`, `build` or `review`; loads for that task kind. The default path is `build`.
 
 A malformed trigger loads always and doctor reports it.
