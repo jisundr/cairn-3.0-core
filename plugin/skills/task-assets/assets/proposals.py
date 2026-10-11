@@ -693,6 +693,11 @@ def cmd_apply(root, pid, fname, section, line):
         return refuse("queue is busy, try again")
 
 
+def write_fd(fd, data):
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(data)
+
+
 def write_rule(directory, entry, root, name, heading, line):
     path = Path(root) / ".harness" / name
     if not path.is_file():
@@ -700,6 +705,8 @@ def write_rule(directory, entry, root, name, heading, line):
     target = path.resolve()
     lines, ends = split_physical(target.read_bytes())
     text = [physical_text(x) for x in lines]
+    if text and text[0].startswith("\ufeff"):  # match headings past a BOM; the bytes keep it
+        text[0] = text[0][1:]
     if rule_body(line) in [rule_body(x) for x in text]:
         return refuse("line already present")
     if len(lines) + 1 > HARNESS_CAPS[name]:
@@ -710,14 +717,14 @@ def write_rule(directory, entry, root, name, heading, line):
     terminated = lines if ends else lines[:-1]
     crlf = sum(x.endswith(b"\r") for x in terminated) * 2 > len(terminated)
     new = list(lines)
-    if pos == len(lines) and not ends and crlf and new:
+    at_end = pos == len(lines) and not ends
+    if at_end and crlf and new and not new[-1].endswith(b"\r"):
         new[-1] += b"\r"  # the old last line gains its terminator, nothing else moves
-    new.insert(pos, line.encode("utf-8") + (b"\r" if crlf else b""))
+    new.insert(pos, line.encode("utf-8") + (b"\r" if crlf and not at_end else b""))
     out = b"\n".join(new) + (b"\n" if ends else b"")
     fd, tmp = tempfile.mkstemp(prefix=".tmp.", suffix="." + name, dir=str(target.parent))
     try:
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(out)
+        write_fd(fd, out)
         os.chmod(tmp, stat.S_IMODE(target.stat().st_mode))
         back, _ = split_physical(Path(tmp).read_bytes())
         if len(back) != len(lines) + 1 or back[pos] != new[pos] or back[:pos] + back[pos + 1:] != new[:pos] + new[pos + 1:]:
