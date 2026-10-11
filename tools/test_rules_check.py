@@ -56,6 +56,20 @@ def test_gates_and_release_variants_are_skipped(tmp_path):
     assert states(root) == [("real rule", "legacy")]
 
 
+def test_typed_preconditions_are_not_rules(tmp_path):
+    body = (
+        "## Checks\n"
+        "- [blocking] python >=3.11\n"
+        "- [Warning] command \"jq -V\"\n"
+        "tool-version node >=20   [warning]\n"
+        "- real rule\n"
+    )
+    root = harness(tmp_path, environment=body)
+    assert states(root) == [("real rule", "legacy")]
+    assert rc.parse_rule_line("- [blocking] x") is None
+    assert rc.parse_rule_line("- [other] x") is not None
+
+
 def test_path_evidence_goes_stale_when_file_removed(tmp_path):
     root = harness(tmp_path, standards="## A\n- Keep it | evidence: path:src/a.py\n")
     (tmp_path / "src").mkdir()

@@ -17,6 +17,7 @@ from pathlib import Path
 
 FILES = ("architecture.md", "standards.md", "environment.md", "workflow.md")
 SKIP_RE = re.compile(r"(gates|release)\b")
+PRECOND_RE = re.compile(r"-\s+\[(blocking|warning)\]", re.I)
 KINDS = ("research", "build", "review")
 EV_DELIM = " | evidence: "
 TR_DELIM = " | applies when: "
@@ -31,7 +32,7 @@ def parse_rule_line(line):
     A misordered pair leaves the evidence delimiter inside the trigger,
     which trigger_error reports.
     """
-    if not line.startswith("- "):
+    if not line.startswith("- ") or PRECOND_RE.match(line):
         return None
     body = line[2:].rstrip("\n")
     evidence = trigger = None
