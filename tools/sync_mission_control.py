@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Copies mission-control's runtime files from the submodule at the repo root
-into plugin/mission-control/, so an install carries a standalone copy with no
-submodule, tests or frontend source. stdlib only.
+"""Copies mission-control's runtime files from the mission-control/ directory at
+the repo root into plugin/mission-control/, so an install carries a standalone
+copy with no tests or frontend source. stdlib only.
 
 Usage:
     python tools/sync_mission_control.py          sync, then list what changed
@@ -65,7 +65,7 @@ def main() -> int:
     root = Path(__file__).resolve().parent.parent
     src, dst = root / SRC_DIR, root / DST_DIR
     if not (src / "server.py").is_file():
-        print(f"{SRC_DIR}/ is empty: run `git submodule update --init`", file=sys.stderr)
+        print(f"{SRC_DIR}/ is missing or empty: restore it from the repo (e.g. `git checkout -- mission-control`)", file=sys.stderr)
         return 2
     if ap.parse_args().check:
         bad = stale(src, dst)
