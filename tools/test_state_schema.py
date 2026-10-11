@@ -278,6 +278,13 @@ def test_main_exit_1_when_named_file_is_missing(tmp_path):
     assert ss.main([str(tmp_path / "gone" / "STATE.md")]) == 1
 
 
+def test_main_does_not_crash_on_non_utf8_file(tmp_path):
+    f = tmp_path / "a" / "STATE.md"
+    f.parent.mkdir(parents=True)
+    f.write_bytes(b"---\ngoal: caf\xe9\nkey_info: x\n---\n")
+    assert ss.main([str(f)]) == 0
+
+
 def test_collect_walks_directories_and_skips_template_folders(tmp_path):
     a = write_state(tmp_path, "t1/STATE.md")
     b = write_state(tmp_path, "t1/01-sub/STATE.md")
