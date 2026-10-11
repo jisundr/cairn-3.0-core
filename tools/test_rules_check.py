@@ -236,6 +236,20 @@ def test_literal_bracket_path_matches_trigger(tmp_path):
         assert "loads 1 of 1" in out.stdout, glob
 
 
+def test_literal_bracket_path_evidence_verifies(tmp_path):
+    bracket_repo(tmp_path)
+    body = (
+        "## A\n"
+        "- literal | evidence: path:app/[id]/page.tsx\n"
+        "- escaped | evidence: path:app/[[]id]/page.tsx\n"
+        "- class | evidence: path:app/[a-z][a-z]/page.tsx\n"
+        "- missing | evidence: path:app/[nope]/page.tsx\n"
+        "- parent | evidence: path:app/[id]/../x\n"
+    )
+    root = harness(tmp_path, standards=body)
+    assert [s for _, s in states(root)] == ["verified", "verified", "verified", "stale", "malformed"]
+
+
 def test_escaped_bracket_and_class_still_match_in_trigger():
     def hit(glob, path):
         return rc.matches({"trigger": "paths:" + glob}, [path])
