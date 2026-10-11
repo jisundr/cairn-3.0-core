@@ -130,6 +130,15 @@ def test_incremental_offset_reads_only_new_lines(proj):
     assert int(pos[0]) == tp.stat().st_size and pos[1] == "2"
 
 
+def test_line_over_scan_cap_is_skipped_not_stuck(proj, monkeypatch):
+    monkeypatch.setattr(pr, "SCAN_MAX", 400)
+    tp = write(proj / "t.jsonl", [user("x " * 600), user("No, use tabs")])
+    pr.record(proj, "s1", tp)
+    assert queue(proj) == []
+    pr.record(proj, "s1", tp)
+    assert [e["signal"] for e in queue(proj)] == ["No, use tabs"]
+
+
 def test_partial_last_line_waits_for_next_pass(proj):
     tp = proj / "t.jsonl"
     tp.write_text(json.dumps(user("No, use tabs")) + "\n" + json.dumps(user("Stop, wrong"))[:30])
