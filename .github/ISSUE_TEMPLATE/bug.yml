@@ -1,0 +1,30 @@
+name: Bug report
+description: Something in cairn didn't work as expected.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: cairn version
+      description: From `/cairn-doctor`, or `version` in the installed plugin.json.
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: OS and Claude Code version
+      placeholder: macOS 15, Claude Code 2.1.x
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: /cairn-doctor output
+      render: text

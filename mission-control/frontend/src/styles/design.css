@@ -1,0 +1,697 @@
+/* Header spacing token: header.app's padding above its rule, and the board's
+   bottom gap to the window edge, so the two cannot drift. */
+:root { --header-pad: 16px; }
+:root {
+  --bg: #fdfdfb;
+  --panel: #ffffff;
+  --panel-sunken: #f7f7f3;
+  --ink: #1e1e1e;
+  --ink-soft: #5b5b52;
+  --ink-faint: #75756b;
+  --border: #dcdcd3;
+  --border-soft: #ece9e1;
+  --add: #2f8f49;
+  --add-bg: #eaf6ec;
+  --add-line: #3fae5c;
+  --remove: #b3372f;
+  --remove-bg: #fbebe9;
+  --remove-line: #d33f3f;
+  /* Categorical series (dataviz skill's validated 8-hue default, fixed order
+     - identity color for By models/tools/agents/project's stacked-bar rows.
+     Not --add/--remove: those are reserved status colors, never reused for
+     series. Validated against this app's own --panel surfaces (#ffffff
+     light / #1a1a14 dark), not just the skill's reference surface. */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color-scheme: light dark;
+}
+/* Accent-theme presets (per-install, opt-in via lib/theme.ts's
+   applyAccentTheme setting document.documentElement.dataset.accentTheme).
+   Each overrides only --add/--add-bg/--add-line - never --remove or
+   --series-N. The attribute selector's specificity (0-2-0) beats the plain
+   :root default above regardless of source order, so "no preset chosen"
+   (attribute absent) keeps today's hardcoded green untouched. */
+:root[data-accent-theme="blue"] {
+  --add: #2b6cc4;
+  --add-bg: #e8f0fb;
+  --add-line: #3a80dd;
+}
+:root[data-accent-theme="purple"] {
+  --add: #7245c2;
+  --add-bg: #f0eaf9;
+  --add-line: #8a5cdb;
+}
+:root[data-accent-theme="pink"] {
+  --add: #c23b7a;
+  --add-bg: #fbe9f1;
+  --add-line: #d94f8f;
+}
+:root[data-accent-theme="teal"] {
+  --add: #158f8a;
+  --add-bg: #e6f6f5;
+  --add-line: #22ada6;
+}
+:root[data-accent-theme="amber"] {
+  --add: #b8760f;
+  --add-bg: #fbf0e0;
+  --add-line: #d38f1e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14140f;
+    --panel: #1a1a14;
+    --panel-sunken: #1f1f18;
+    --ink: #ecece2;
+    --ink-soft: #a7a79a;
+    --ink-faint: #8a8a7e;
+    --border: #35352b;
+    --border-soft: #2a2a21;
+    --add: #5fd67f;
+    --add-bg: #17301f;
+    --add-line: #5fd67f;
+    --remove: #ef7268;
+    --remove-bg: #33201d;
+    --remove-line: #ef7268;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-8: #e66767;
+  }
+  /* Dark counterparts of the light-mode accent presets above - same ids,
+     brighter/lighter --add readable on --panel (#1a1a14), matching the
+     lightness relationship the default green already uses. */
+  :root[data-accent-theme="blue"] {
+    --add: #6badf5;
+    --add-bg: #17222f;
+    --add-line: #6badf5;
+  }
+  :root[data-accent-theme="purple"] {
+    --add: #b48ef2;
+    --add-bg: #241a30;
+    --add-line: #b48ef2;
+  }
+  :root[data-accent-theme="pink"] {
+    --add: #f281b8;
+    --add-bg: #301820;
+    --add-line: #f281b8;
+  }
+  :root[data-accent-theme="teal"] {
+    --add: #5fd6c9;
+    --add-bg: #16302d;
+    --add-line: #5fd6c9;
+  }
+  :root[data-accent-theme="amber"] {
+    --add: #f2b84f;
+    --add-bg: #302410;
+    --add-line: #f2b84f;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--sans);
+  font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+::selection { background: var(--add-bg); color: var(--add); }
+:focus-visible { outline: 2px solid var(--add-line); outline-offset: 2px; border-radius: 2px; }
+.recharts-wrapper :focus:not(:focus-visible) { outline: none; }
+.mono { font-family: var(--mono); font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0; font-variant-numeric: tabular-nums; }
+
+.shell { max-width: 1320px; margin: 0 auto; padding: 20px 28px 48px; }
+/* Kanban page only: fills the window, so the column panes (not the page)
+   scroll and end a --header-pad gap above the window's bottom edge. */
+.shell.shell-board {
+  /* Wide enough for eight 248px columns + 7 gaps (2096px) plus the 28px gutters. */
+  max-width: 2152px;
+  height: 100vh; height: 100dvh; display: flex; flex-direction: column;
+  padding-bottom: var(--header-pad); overflow: hidden; box-sizing: border-box;
+}
+.shell-board > .kanban-columns, .shell-board > .panel, .shell-board > .state-wrap { min-height: 0; }
+
+/* ---- header ---- */
+header.app {
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  padding-bottom: var(--header-pad); margin-bottom: 20px; border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.app-left { display: flex; align-items: center; gap: 20px; row-gap: 8px; flex-wrap: wrap; min-width: 0; }
+.wordmark {
+  font-family: var(--mono); font-weight: 700; font-size: 16px; color: var(--ink);
+  letter-spacing: -0.01em; white-space: nowrap; text-decoration: none;
+}
+.wordmark .dim { color: var(--ink-faint); font-weight: 500; }
+.wordmark .sep { color: var(--ink-faint); font-weight: 500; }
+.wordmark .sub { color: var(--ink-soft); font-weight: 600; }
+.wordmark .sub-short { color: var(--ink-soft); font-weight: 600; display: none; }
+nav.app-tabs { display: flex; gap: 20px; }
+nav.app-tabs a {
+  font-size: 13px; font-weight: 600; color: var(--ink-soft); text-decoration: none;
+  padding-bottom: 3px; border-bottom: 2px solid transparent;
+}
+nav.app-tabs a.active { color: var(--ink); border-bottom-color: var(--add-line); }
+nav.app-tabs a:hover:not(.active) { color: var(--ink); }
+/* F3: collapsed-nav trigger, hidden until the 900px breakpoint below swaps
+   it in for nav.app-tabs - must win over .dropdown-btn's own
+   display:inline-flex at equal specificity. */
+.dropdown-btn.nav-dropdown { display: none; }
+
+.app-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--add); flex-shrink: 0; }
+.status-dot.err { background: var(--remove); }
+.status-cluster { display: flex; align-items: center; gap: 8px; }
+.updated-at { font-size: 12px; color: var(--ink-faint); white-space: nowrap; }
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border);
+  background: transparent; color: var(--ink-soft); cursor: pointer;
+}
+.icon-btn:hover { border-color: var(--ink-soft); color: var(--ink); background: var(--panel-sunken); }
+.icon-btn svg { width: 13px; height: 13px; }
+.icon-btn:disabled { cursor: default; opacity: 0.7; }
+.icon-btn.spinning svg { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .icon-btn.spinning svg { animation: none; } }
+
+/* Kanban's persistent Needs Attention header pill (PRD §6.9) - visible from
+   every tab via AppHeader, not just Kanban itself. No mockup shows this
+   state (none of the approved board mockups happen to render with the app
+   header itself badged), so it's new markup - but --remove/--remove-bg is
+   the same accent WarningBanner.tsx and .kcard-attn already use for this
+   exact state, not a new color. */
+.attn-pill {
+  display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11px; font-weight: 600;
+  color: var(--remove); background: var(--remove-bg); border: 1px solid var(--remove); border-radius: 12px;
+  padding: 3px 10px 3px 10px; cursor: pointer;
+}
+.attn-pill:hover { background: var(--remove-line); color: var(--panel); }
+
+/* ---- range control ---- */
+.range-row { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+.range-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint); }
+.segs { display: flex; gap: 2px; background: var(--border-soft); border-radius: 7px; padding: 2px; }
+.seg {
+  font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--ink-soft);
+  padding: 5px 12px; border-radius: 5px; cursor: pointer; border: 1px solid transparent;
+}
+.seg.active { background: var(--panel); border-color: var(--border); color: var(--ink); font-weight: 600; }
+
+/* ---- install-scope row (F2): hostname + (read-only project chip | "All
+   projects" dropdown -> "Project: X" chip), relocated out of the header
+   onto its own row, per the overview-revamp mockups ---- */
+.host-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+.host-row-left { display: flex; align-items: center; gap: 8px; }
+.host-row-right { display: flex; align-items: center; gap: 8px; }
+.host-name { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+.filter-chip.readonly { padding: 3px 10px; }
+
+.dropdown-wrap { position: relative; }
+.dropdown-btn {
+  display: inline-flex; align-items: center; gap: 6px; font-family: var(--sans); font-size: 12.5px; font-weight: 600;
+  color: var(--ink); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px;
+  background: var(--panel); cursor: pointer;
+}
+.dropdown-btn:hover { border-color: var(--ink-soft); }
+.dropdown-btn svg { width: 10px; height: 10px; stroke: var(--ink-faint); flex-shrink: 0; }
+.dropdown-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 10; min-width: 160px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+.dropdown-item {
+  font-family: var(--sans); font-size: 12.5px; font-weight: 500; color: var(--ink);
+  padding: 6px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap;
+}
+.dropdown-item:hover { background: var(--panel-sunken); }
+
+/* Overview's 4 stat cards (.stats/.stat/.stat-label/.stat-value) are gone
+   as of O1 - StatCard.tsx (their only consumer) was deleted with them, per
+   PLAN.md's "Remove: 4 stat cards". */
+.info-dot { display: inline-flex; color: var(--ink-faint); cursor: default; margin-left: 5px; vertical-align: middle; }
+.info-dot svg { width: 14px; height: 14px; }
+
+/* ---- grid / panel ---- */
+.grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
+/* Overview revamp (O1): utility column-count variants for the Trend/
+   Calendar+Breakdown row (grid-2, uneven - chart gets more room than the
+   summary beside it) and the By models/tools/agents(/project) row
+   (grid-1, on request - was 3 equal columns wrapping a 4th panel alone on
+   system installs, then 2, now one full-width panel per row). */
+.grid-2 { grid-template-columns: 1.6fr 1fr; }
+.grid-1 { grid-template-columns: 1fr; }
+.trend-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.kv-list { display: flex; flex-direction: column; flex-grow: 1; }
+.kv-row { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; font-family: var(--mono); font-size: 11px; }
+.kv-row .name { font-weight: 500; color: var(--ink); }
+.kv-row .val { font-weight: 600; color: var(--ink); }
+.kv-row.total { border-top: 1px solid var(--border-soft); margin-top: 2px; padding-top: 8px; font-weight: 700; }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; min-width: 0; }
+.panel.err { border-color: var(--remove); }
+.panel-title {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--ink-faint); margin: 0 0 14px; display: flex; align-items: center; justify-content: space-between;
+}
+.panel-title.err { color: var(--remove); }
+
+/* ---- chart tooltip (shared by the remaining Recharts panels:
+   TokensPerDayChart, HbarList - ActivityHeatmap is gone, ProjectCostPanel
+   moved off Recharts onto StackedBarPanel in F6) ---- */
+.chart-tooltip {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; font-size: 11.5px; color: var(--ink); max-width: 220px;
+}
+.chart-tooltip-title { font-weight: 600; margin-bottom: 6px; color: var(--ink); }
+.chart-tooltip-row { display: flex; justify-content: space-between; gap: 10px; color: var(--ink-soft); }
+.chart-tooltip-row + .chart-tooltip-row { margin-top: 2px; }
+/* TokensPerDayChart's per-model tooltip row (on request) needs its own
+   swatch sizing - `.stack-legend .sw`/`.cal-legend .sw` are both scoped to
+   their own container and don't reach a `.sw` used here, which otherwise
+   renders as an unsized, flex-shrunk-to-nothing span. */
+.chart-tooltip-row .sw { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+/* TokensPerDayChart's tooltip only (not HbarList's, which stays on the
+   shared .chart-tooltip default) - its header date is now the fuller
+   formatDateLabel string (e.g. "Jan 5 2019, Sat"), which needs more room
+   than .chart-tooltip's shared 220px to sit on the same row as cost/tokens
+   without cramping. */
+.chart-tooltip-day { max-width: 280px; padding: 12px 14px; font-size: 12px; }
+
+/* ---- hbar list: row-level styling now lives inline in each Recharts
+   `shape`/`tick` renderer (HbarList.tsx, TruncatedAxisTick.tsx,
+   ProjectCostPanel.tsx), since goal 6 needs per-row layout math no static
+   class can express - .hbar-sign/-label/-scope/-track/-fill/-value are all
+   dead once ProjectCostPanel (this class's last user) moves to Recharts
+   too ---- */
+
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; font-weight: 600;
+  color: var(--add); background: var(--add-bg); padding: 3px 6px 3px 10px; border-radius: 12px;
+  text-transform: none;
+}
+.filter-chip .clear { display: inline-flex; cursor: pointer; width: 14px; height: 14px; border-radius: 50%; }
+.filter-chip .clear:hover { background: color-mix(in srgb, var(--add) 20%, transparent); }
+.filter-chip .clear svg { width: 14px; height: 14px; stroke: var(--add); }
+.filter-chip .plus { display: inline-flex; animation: flash 900ms ease-out; }
+.filter-chip .plus svg { width: 12px; height: 12px; stroke: var(--add-line); }
+@keyframes flash { 0% { transform: scale(1.6); } 100% { transform: scale(1); } }
+
+/* ---- Calendar view (F7): GitHub-style contribution heatmap, on the app's
+   existing --add scale rather than a separate color system - see
+   lib/heatColor.ts. ---- */
+.cal-body { display: flex; gap: 8px; align-items: flex-start; }
+.cal-daylabels { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+.cal-daylabels div { height: 13px; display: flex; align-items: center; font-family: var(--mono); font-size: 9px; color: var(--ink-faint); }
+.cal-scroll { overflow-x: auto; padding-bottom: 2px; }
+.cal-grid { display: flex; gap: 4px; }
+.cal-week { display: flex; flex-direction: column; gap: 4px; }
+.cal-cell { width: 13px; height: 13px; border-radius: 3px; flex-shrink: 0; cursor: pointer; }
+.cal-cell.zerofill { background: transparent; cursor: default; }
+.cal-cell.selected { outline: 2px solid var(--ink); outline-offset: 1px; }
+.cal-legend { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 8px; }
+.cal-legend .sw { width: 11px; height: 11px; border-radius: 2px; }
+.cal-legend .lbl { font-family: var(--mono); font-size: 9px; color: var(--ink-faint); }
+
+/* ---- stacked-bar panels (F5): By models / By tools / By agents / By
+   project - a GitHub-language-bar-style proportional segmented bar plus a
+   legend. Rows take the fixed-order categorical --series-N scale (identity
+   color per row/name), not the ink/ink-soft/ink-faint hierarchy scale - that
+   3-tier monochrome was carried straight from the wireframe for layout
+   purposes only, never a real color decision. Bar itself is a Recharts
+   stacked BarChart (one <Bar stackId> per row, see StackedBarPanel.tsx) -
+   the swatch stays a plain CSS square, but each segment is an SVG <rect>,
+   so the shared `.series-N` classes below carry both `background` (swatch)
+   and `fill` (segment). ---- */
+.stackbar { height: 10px; border-radius: 5px; overflow: hidden; background: var(--border-soft); }
+.stack-legend { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
+.stack-legend .item { display: flex; align-items: center; gap: 8px; }
+.stack-legend .item.clickable { cursor: pointer; }
+.stack-legend .item.selected .name { color: var(--add); font-weight: 600; }
+.stackbar .seg.selected, .chart-bars .seg.selected { outline: 1px solid var(--add-line); outline-offset: -1px; }
+.stack-legend .sw { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.stack-legend .name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--ink); }
+.stack-legend .val { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.series-1 { background: var(--series-1); fill: var(--series-1); }
+.series-2 { background: var(--series-2); fill: var(--series-2); }
+.series-3 { background: var(--series-3); fill: var(--series-3); }
+.series-4 { background: var(--series-4); fill: var(--series-4); }
+.series-5 { background: var(--series-5); fill: var(--series-5); }
+.series-6 { background: var(--series-6); fill: var(--series-6); }
+.series-7 { background: var(--series-7); fill: var(--series-7); }
+.series-8 { background: var(--series-8); fill: var(--series-8); }
+
+.btn-block {
+  display: block; width: 100%; text-align: center; margin-top: 10px;
+  font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--ink);
+  border: 1px solid var(--border); border-radius: 6px; padding: 8px; background: transparent; cursor: pointer;
+}
+.btn-block:hover { border-color: var(--ink-soft); background: var(--panel-sunken); }
+
+/* ---- error inline (per-panel failure) ---- */
+.err-inline { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-grow: 1; flex-wrap: wrap; }
+.err-text { font-size: 12px; color: var(--remove); display: flex; align-items: center; gap: 7px; }
+.err-text svg { width: 14px; height: 14px; flex-shrink: 0; }
+.btn-err {
+  font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--remove);
+  border: 1px solid var(--remove); border-radius: 6px; padding: 6px 12px; background: transparent;
+  cursor: pointer; white-space: nowrap;
+}
+.btn-err:hover { background: var(--remove-bg); }
+
+/* ---- centered state card (empty / disconnected) ---- */
+.state-wrap { display: flex; align-items: center; justify-content: center; padding: 64px 20px; }
+.state-card { width: 100%; max-width: 440px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.state-icon {
+  width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; color: var(--ink-faint);
+}
+.state-icon svg { width: 18px; height: 18px; }
+.state-icon.err { border-color: var(--remove); color: var(--remove); }
+.state-title { font-size: 14px; font-weight: 600; color: var(--ink); }
+.state-body { font-size: 12.5px; line-height: 1.6; color: var(--ink-soft); }
+.state-steps { align-self: stretch; border-top: 1px solid var(--border-soft); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.state-step { display: flex; gap: 10px; align-items: flex-start; font-size: 12px; color: var(--ink-soft); }
+.state-step .n {
+  flex-shrink: 0; width: 16px; height: 16px; border-radius: 50%; background: var(--border-soft);
+  color: var(--ink-faint); font-family: var(--mono); font-size: 9px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; margin-top: 1px;
+}
+
+/* ---- sessions table ---- */
+.table-wrap { overflow-x: auto; }
+table.sessions { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+table.sessions th {
+  text-align: left; font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--ink-faint); padding: 0 12px 10px; border-bottom: 1px solid var(--border);
+}
+table.sessions th.sortable { cursor: pointer; }
+table.sessions th.sortable:hover { color: var(--ink-soft); }
+table.sessions td { padding: 10px 12px; border-bottom: 1px solid var(--border-soft); color: var(--ink); }
+table.sessions tr:last-child td { border-bottom: none; }
+table.sessions a.sess { color: var(--add); text-decoration: none; font-weight: 600; }
+table.sessions a.sess:hover { text-decoration: underline; }
+/* "older" marker on a session's cairn cell - .kcard-kind's small neutral badge, spaced off the version text. */
+.cairn-older { margin-left: 6px; }
+
+/* ---- Sessions List (S1/S2): sort control group + pagination ---- */
+/* No `overflow: hidden` here (dropped from a live-review fix) - it kept
+   this pill's rounded corners seamless, but also clipped `.dropdown-menu`
+   entirely, since that's `position: absolute` inside `.sort-select`, a
+   descendant of this container. The two children now carry their own
+   matching corner radii instead, so the pill still reads as one shape. */
+.sort-group { display: flex; align-items: stretch; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); }
+.sort-group .sort-select {
+  position: relative; display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-family: var(--sans);
+  font-size: 12.5px; font-weight: 600; color: var(--ink); border-right: 1px solid var(--border); cursor: pointer;
+  border-radius: 6px 0 0 6px;
+}
+.sort-group .sort-select svg { width: 10px; height: 10px; stroke: var(--ink-faint); }
+.sort-group .sort-dir {
+  display: flex; align-items: center; padding: 6px 8px; background: none; border: none; cursor: pointer; color: var(--ink-soft);
+  border-radius: 0 6px 6px 0;
+}
+.sort-group .sort-dir:hover { color: var(--ink); background: var(--panel-sunken); }
+.sort-group .sort-dir svg { width: 13px; height: 13px; }
+
+.pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.pagination .pg-count { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+.pg-btn {
+  font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--ink);
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; background: var(--panel); cursor: pointer;
+}
+.pg-btn:disabled { color: var(--border); cursor: default; border-color: var(--border-soft); }
+.pg-btn:not(:disabled):hover { border-color: var(--ink-soft); background: var(--panel-sunken); }
+
+/* ---- session drilldown ---- */
+.drill-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap;
+}
+.drill-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.drill-back { font-size: 12px; font-weight: 600; color: var(--ink-soft); text-decoration: none; }
+.drill-back:hover { color: var(--ink); }
+.drill-title { font-size: 15px; font-weight: 700; color: var(--ink); }
+.drill-meta { font-size: 12px; color: var(--ink-faint); }
+.drill-right { display: flex; align-items: center; gap: 16px; }
+.drill-tokens { font-size: 12px; color: var(--ink-faint); }
+.drill-cost { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--ink); }
+.drill-grid { display: grid; grid-template-columns: 280px 1fr; gap: 16px; }
+
+/* Goal 7: looser spacing (gap/padding/line-height) plus a third, visually
+   distinct background per call kind - prompt keeps the plain panel card,
+   response gets a tinted add-bg card (previously indistinguishable from a
+   toolcall's own panel-sunken background at a glance), and toolcall drops
+   its all-around dashed border in favor of a centered, near-full-width
+   layout - a "system event" read distinct from either chat bubble's own
+   left/right alignment. */
+/* Visual-polish pass: a turn's tool-calls are one continuous sequence of
+   steps, not a set of disconnected pills, so `.toolcall-thread` now carries
+   a vertical connector (`::before`) threading behind its rows - each
+   still-centered `.toolcall` sits on top of it, so the line only shows in
+   the gaps between rows. This supersedes the centered layout's earlier
+   sole reliance on mono font + dot marker to read as "one system event
+   sequence"; `.toolcall` itself keeps its centered alignment (only a
+   connector was added, not a left-accent-bar restyle). */
+/* `.transcript` only ever has one direct DOM child (react-virtual's sizing
+   wrapper - see Drilldown.tsx) - this `gap` never reaches the individual
+   turns, which are absolutely-positioned siblings inside that one child, so
+   it's dead as far as layout goes. Left in place since it's harmless, but
+   `.chat-turn` below is what actually spaces bubbles/toolcalls within (and
+   between, via its padding-bottom) each turn. */
+.transcript { display: flex; flex-direction: column; gap: 14px; }
+/* Turn-to-turn (padding-bottom) is deliberately much larger than
+   prompt/toolcall-thread/response spacing (gap), which in turn is larger
+   than the gap between consecutive tool-calls within one turn
+   (.toolcall-thread's own gap) - a step boundary should read as smaller
+   than a turn boundary. */
+.chat-turn { display: flex; flex-direction: column; gap: 14px; padding-bottom: 28px; }
+.turn-origin { font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint); }
+.turn-origin.turn-origin-human { color: var(--ink-soft); font-weight: 700; }
+.bubble { max-width: 74%; padding: 11px 15px; border-radius: 10px; font-size: 12.5px; line-height: 1.6; }
+.bubble.prompt { align-self: flex-start; background: var(--panel); border: 1px solid var(--border); border-bottom-left-radius: 2px; }
+.bubble.response { align-self: flex-end; background: var(--add-bg); border: 1px solid var(--border-soft); border-bottom-right-radius: 2px; }
+.toolcall-thread { position: relative; display: flex; flex-direction: column; gap: 6px; }
+.toolcall-thread::before {
+  content: ""; position: absolute; top: 4px; bottom: 4px; left: 50%; width: 1px;
+  background: var(--border); transform: translateX(-50%); z-index: 0;
+}
+.toolcall {
+  position: relative; z-index: 1;
+  align-self: center; display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 6px;
+  background: var(--panel-sunken); font-family: var(--mono); font-size: 11px; line-height: 1.4;
+  color: var(--ink-soft); max-width: 82%;
+}
+.toolcall .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ink-faint); flex-shrink: 0; }
+.toolcall b { color: var(--ink); font-weight: 700; }
+.placeholder-block {
+  background: repeating-linear-gradient(45deg, var(--panel-sunken), var(--panel-sunken) 8px, var(--border-soft) 8px, var(--border-soft) 16px);
+  border: 1px dashed var(--border); border-radius: 6px; display: flex; align-items: center; justify-content: center;
+  color: var(--ink-faint); font-family: var(--mono); font-size: 11px; padding: 20px;
+}
+
+/* ---- first-launch progress ---- */
+.progress-banner { border: 1px solid var(--add); border-radius: 8px; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; background: var(--panel); margin-bottom: 16px; }
+.progress-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.progress-title { font-size: 12.5px; font-weight: 600; color: var(--add); }
+.progress-sub { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+.progress-track { height: 5px; background: var(--add-bg); border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--add); }
+.progress-note { font-size: 11.5px; color: var(--ink-soft); }
+.skel { background: var(--border-soft); border-radius: 4px; animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* ---- Kanban board (v2): 4 status columns (Ready/Needs Attention/Ongoing/
+   Done, PRD §6.2's precedence rule, not a build-phase view) of read-only
+   cards. Column and card are new structure but no new color: Ongoing reuses
+   the header's own .status-dot green exactly (this world's one "connected/
+   live" device), Needs Attention reuses --remove the same way .panel.err
+   already does. The parent progress bar (§6.4) reuses HbarList's own
+   .hbar-track/.hbar-fill idiom (base rule below - HbarList itself moved
+   onto Recharts' own per-row shape renderers and dropped these, per the
+   dead-code note above, so the kcard-progress override needs its own base
+   rather than relying on a definition HbarList no longer provides). ---- */
+.hbar-track { background: var(--border-soft); border-radius: 3px; overflow: hidden; }
+.hbar-fill { height: 100%; background: var(--add); }
+.kanban-columns {
+  flex: 1 1 0; min-height: 0; min-width: 0; display: flex; gap: 16px; align-items: stretch;
+  overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
+}
+.kanban-column {
+  display: flex; flex-direction: column; min-height: 0; min-width: 0;
+  flex: 0 0 auto; width: max(248px, calc((100% - 7 * 16px) / 8));
+}
+.kanban-column-head { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 2px 10px; }
+.kanban-column-title { font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint); }
+.kanban-column-count { font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--ink-faint); background: var(--border-soft); border-radius: 10px; padding: 1px 7px; }
+.kanban-column-cards { display: flex; flex-direction: column; gap: 8px; flex: 1 1 0; min-height: 0; overflow-y: auto; }
+.kanban-column-cards .btn-block { margin-top: 0; }
+.kcard { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 11px 13px; display: flex; flex-direction: column; min-width: 0; }
+.kcard-skel { height: 76px; border-radius: 6px; }
+.kcard-top { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+.kcard-kind { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint); background: var(--border-soft); border-radius: 3px; padding: 1px 5px; }
+.kcard-project { font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--ink-soft); margin-left: auto; }
+.kcard-title { font-size: 13px; font-weight: 600; color: var(--ink); line-height: 1.3; margin-bottom: 4px; }
+.kcard-goal { font-size: 12px; line-height: 1.5; color: var(--ink-soft); margin-bottom: 8px; }
+.kcard-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: auto; }
+.kcard-date { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); }
+.kcard-ongoing { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--add); }
+.kcard-ongoing .status-dot { width: 6px; height: 6px; }
+.kcard-attn { display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--remove); background: var(--remove-bg); border-radius: 3px; padding: 1px 6px; }
+.kcard-progress { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.kcard-progress .hbar-track { width: 42px; height: 5px; }
+.kcard-progress .hbar-fill { background: var(--add); }
+.kcard-progress-label { font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--ink); }
+.kcard-parent { display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 10px; color: var(--ink-faint); margin-bottom: 6px; align-self: flex-start; }
+.kcard-parent svg { width: 8px; height: 8px; stroke: currentColor; flex-shrink: 0; }
+
+/* ---- Task detail modal: a centered dialog + backdrop (PRD §6.7), fluid
+   width so it fills the space the old 75%-wide side drawer used at desktop
+   sizes without leaving dead space or overflow at any narrower width. The
+   backdrop dim is a focus scrim, not a card elevation effect, so it doesn't
+   read as an exception to the app's flat/hairline/no-shadow vocabulary -
+   the dialog's own shadow below is the one deliberate exception to that
+   vocabulary, same rationale as the backdrop dim already gets: an overlay
+   floating above the page reads better with one than without. ---- */
+.drawer-backdrop { position: fixed; inset: 0; background: rgba(30, 30, 30, 0.32); z-index: 20; }
+.drawer { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(920px, calc(100vw - 32px)); min-height: calc(100vh - 32px); max-height: calc(100vh - 32px); background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 16px 48px rgba(30, 30, 30, 0.24); z-index: 21; display: flex; flex-direction: column; overflow: hidden; }
+.drawer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 20px 24px 14px; border-bottom: 1px solid var(--border); }
+.drawer-title { font-size: 16px; font-weight: 700; color: var(--ink); line-height: 1.3; margin-bottom: 7px; }
+/* Kind/column badge row - now also holds the parent link and sub-task
+   count when applicable (§6.7's header enhancement), so it wraps rather
+   than the old single-line inline style, which never needed to. */
+.drawer-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.drawer-parent-link { font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--ink-faint); background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.drawer-parent-link:hover { color: var(--ink); }
+.drawer-subtask-count { font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--ink-faint); }
+.drawer-close { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--ink-soft); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.drawer-close:hover { border-color: var(--ink-soft); color: var(--ink); background: var(--panel-sunken); }
+.drawer-tabs { display: flex; gap: 22px; padding: 0 24px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.drawer-tab { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); text-decoration: none; padding: 11px 0; border-bottom: 2px solid transparent; cursor: pointer; background: none; border-left: none; border-right: none; border-top: none; }
+.drawer-tab.active { color: var(--ink); border-bottom-color: var(--add-line); }
+.drawer-tab:hover:not(.active) { color: var(--ink); }
+.drawer-body { padding: 20px 24px; overflow: auto; flex-grow: 1; }
+/* Docs tab overrides the reading-width cap: a two-pane file browser wants
+   the modal's full width, not a prose column. */
+.drawer-body.docs-tab { max-width: none; padding: 0; overflow: hidden; display: flex; }
+.drawer-section { margin-bottom: 22px; }
+.drawer-section-title { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 8px; }
+
+/* Prompt composer (PRD §6.8) - needs-attention and planned cards. No backend,
+   no send: a pre-filled, editable textarea and a Copy button. The caption is
+   load-bearing, not decoration - researched explicitly that no supported way
+   exists to send this anywhere, so the UI states that limit plainly rather
+   than implying otherwise. needs_attention keeps the --remove-accented
+   treatment every other Needs Attention surface uses; the `.start` modifier
+   (planned cards) uses a neutral border/heading color instead - nothing here
+   needs the alarming tone. */
+.reply-composer { border: 1px solid var(--remove); border-radius: 8px; padding: 14px 16px; margin-bottom: 22px; background: var(--panel); }
+.reply-composer.start { border-color: var(--border); }
+.reply-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.reply-title { font-size: 12.5px; font-weight: 700; color: var(--remove); }
+.reply-composer.start .reply-title { color: var(--ink); }
+.reply-reason { font-size: 12px; color: var(--ink-soft); margin-bottom: 10px; }
+.reply-textarea { width: 100%; min-height: 72px; resize: vertical; font-family: var(--sans); font-size: 12.5px; line-height: 1.5; color: var(--ink); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 9px 11px; box-sizing: border-box; }
+.reply-textarea:focus-visible { outline: 2px solid var(--add-line); outline-offset: 1px; }
+.reply-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.reply-copy-btn { font-family: var(--mono); font-size: 11.5px; font-weight: 600; color: var(--ink); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; background: transparent; cursor: pointer; flex-shrink: 0; }
+.reply-copy-btn:hover { border-color: var(--ink-soft); background: var(--panel-sunken); }
+.reply-note { font-size: 11px; color: var(--ink-faint); line-height: 1.4; }
+
+/* Details tab's frontmatter table - same hairline-row/mono-label idiom as
+   table.sessions, adapted to a 2-column field/value layout instead of a
+   list of records. */
+table.detail { width: 100%; border-collapse: collapse; }
+table.detail td { padding: 9px 0; border-bottom: 1px solid var(--border-soft); vertical-align: baseline; }
+table.detail tr:last-child td { border-bottom: none; }
+table.detail .dt-key { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint); width: 104px; padding-right: 14px; white-space: nowrap; }
+table.detail .dt-val { font-size: 12.5px; line-height: 1.55; color: var(--ink); }
+table.detail .dt-val.mono { font-family: var(--mono); font-size: 12px; }
+
+/* Activity timeline: dated, one entry per STATE.md log line (PRD §6.5) -
+   prose in the body sans (this is narrative, not a measured value), date in
+   mono as a label. */
+.timeline { display: flex; flex-direction: column; }
+.timeline-item { position: relative; padding: 0 0 16px 16px; border-left: 1px solid var(--border-soft); }
+.timeline-item:last-child { border-left-color: transparent; padding-bottom: 0; }
+.timeline-item::before { content: ""; position: absolute; left: -4px; top: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); border: 2px solid var(--panel); }
+.timeline-date { font-family: var(--mono); font-size: 10.5px; font-weight: 600; color: var(--ink-faint); margin-bottom: 3px; }
+.timeline-text { font-size: 12.5px; line-height: 1.6; color: var(--ink-soft); }
+/* An empty (but non-null) activity log - same tone as .timeline-text, no
+   dot/border markup since there's no entry to anchor one to. */
+.timeline-empty { font-size: 12.5px; color: var(--ink-faint); }
+
+/* Sub-task children list (§6.5) - a parent folder's Details tab, above the
+   timeline: reuses table.detail's own row idiom rather than a third list
+   style, since it's the same "label, then value" shape. */
+.subtask-list { display: flex; flex-direction: column; }
+.subtask-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-soft); background: none; border-left: none; border-right: none; border-top: none; text-align: left; cursor: pointer; font: inherit; color: inherit; width: 100%; }
+.subtask-row:last-child { border-bottom: none; }
+.subtask-row:hover .subtask-name { color: var(--add); }
+.subtask-name { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.subtask-goal { font-size: 11.5px; color: var(--ink-faint); flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ColumnBadge's `variant="subtask"` modifier - the full-size solid-fill
+   badge reads as too heavy at this row's smaller 11.5-12.5px text; an
+   outlined treatment (same existing tokens, no new fill) stays legible
+   without competing with the row's own text for attention. */
+.subtask-badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
+.kcard-attn.subtask-badge { background: transparent; border: 1px solid var(--remove); }
+.kcard-kind.subtask-badge { background: transparent; border: 1px solid var(--border); }
+.kcard-ongoing.subtask-badge { gap: 4px; }
+.kcard-ongoing.subtask-badge .status-dot { width: 5px; height: 5px; }
+
+/* Docs tab (PRD §6.6): GitLab's own file-browser layout, per the request -
+   a persistent left sidebar (file tree) beside a main content pane, not a
+   stacked list-then-content. Desktop only: at the 900px breakpoint below,
+   the sidebar collapses into a dropdown (reusing .dropdown-wrap/-btn/-menu
+   verbatim - InstallScopeRow's own component, not a second one) above a
+   full-width main pane, since there's no room for two columns at that size. */
+.docs-layout { display: flex; align-items: stretch; width: 100%; }
+.docs-sidebar { width: 208px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 18px 12px 18px 24px; overflow: auto; }
+.docs-sidebar-path { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); padding: 0 8px 10px; }
+.docs-sidebar-path b { color: var(--ink-soft); font-weight: 600; }
+.docs-file-list { display: flex; flex-direction: column; }
+.docs-file { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; text-decoration: none; color: inherit; cursor: pointer; background: none; border: none; text-align: left; font: inherit; width: 100%; }
+.docs-file:hover { background: var(--panel-sunken); }
+.docs-file.active { background: var(--add-bg); }
+.docs-file.active .doc-name { color: var(--add); }
+.doc-icon { width: 14px; height: 14px; color: var(--ink-faint); flex-shrink: 0; }
+.doc-name { font-size: 12.5px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.docs-main { flex-grow: 1; min-width: 0; padding: 18px 24px; overflow: auto; }
+.docs-main-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 12px; margin-bottom: 16px; border-bottom: 1px solid var(--border-soft); }
+.docs-main-title { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.docs-main-meta { font-family: var(--mono); font-size: 10.5px; color: var(--ink-faint); white-space: nowrap; }
+.docs-main-empty { display: flex; align-items: center; justify-content: center; height: 100%; min-height: 220px; font-size: 12.5px; color: var(--ink-faint); }
+.docs-mobile-picker { display: none; margin-bottom: 16px; }
+.doc-render h1, .doc-render h2, .doc-render h3 { font-size: 15px; font-weight: 700; color: var(--ink); margin: 20px 0 8px; }
+.doc-render h1:first-child, .doc-render h2:first-child, .doc-render h3:first-child { margin-top: 0; }
+.doc-render p, .doc-render li { font-size: 12.5px; line-height: 1.65; color: var(--ink-soft); margin: 0 0 10px; }
+.doc-render code { font-family: var(--mono); font-size: 11.5px; background: var(--border-soft); border-radius: 3px; padding: 1px 5px; color: var(--ink); }
+.doc-render img { max-width: 100%; height: auto; }
+.doc-img-missing { font-size: 11.5px; font-style: italic; color: var(--ink-faint); border: 1px dashed var(--border); border-radius: 3px; padding: 1px 6px; }
+
+@media (max-width: 900px) {
+  .grid, .grid-2, .drill-grid { grid-template-columns: 1fr; }
+  .shell { padding: 16px 16px 36px; }
+  .shell.shell-board { padding-bottom: var(--header-pad); }
+  header.app { gap: 12px; }
+  .wordmark .sub { display: none; }
+  .wordmark .sub-short { display: inline; }
+  nav.app-tabs { display: none; }
+  .dropdown-btn.nav-dropdown { display: flex; }
+  /* Docs tab: no room for a persistent sidebar, so it collapses into the
+     same dropdown-btn/dropdown-menu InstallScopeRow already uses - not a
+     second dropdown component - above a full-width main pane. */
+  .docs-layout { flex-direction: column; }
+  .docs-sidebar { display: none; }
+  .docs-main { padding: 18px 20px; }
+  .docs-mobile-picker { display: block; padding: 18px 20px 0; }
+}

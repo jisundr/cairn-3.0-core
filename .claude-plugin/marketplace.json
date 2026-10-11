@@ -1,0 +1,12 @@
+{
+  "name": "cairn-marketplace",
+  "description": "Marketplace hosting the cairn plugin.",
+  "owner": { "name": "Jayson De los Reyes", "email": "jisun.delosreyes@gmail.com" },
+  "plugins": [
+    {
+      "name": "cairn",
+      "source": "./plugin",
+      "description": "A lean, on-demand, non-invasive development workflow for Claude Code."
+    }
+  ]
+}
