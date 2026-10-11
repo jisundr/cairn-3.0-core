@@ -22,7 +22,7 @@ Then, in the project you want cairn to work in, run `/cairn-setup`.
 | Claude Code | everything | — |
 | `bash` | the hooks | hooks don't run. On Windows, use Git for Windows (Git Bash) or WSL. |
 | `jq` | the hooks | hooks skip their work; session tracking and `/cairn-mc` data stay empty. |
-| `python3` ≥ 3.11 | `/cairn-mc` and its token tracking | no dashboard, no cost data. Standard library only, nothing to `pip install`. |
+| `python3` ≥ 3.11 | `/cairn-mc` and its token tracking, the rules check in `/cairn-doctor`, and the proposals queue (through `signals.sh`) | no dashboard, no cost data, no rules report, and the learning loop is silent (the hooks exit 0). Standard library only, nothing to `pip install`. |
 | `git` | branches, worktrees, PRs | — |
 | `gh` or `glab` (optional) | `/cairn-review-pr`, detecting merged PRs | `/cairn-review-pr` stops and says so; task stages fall back to `STATE.md`. |
 
@@ -30,7 +30,7 @@ Run `/cairn-doctor` to see which of these it finds.
 
 ## Upgrading from 2.0
 
-Your `.harness/` needs nothing: every rule file works as written, and cairn does not rewrite one. `/cairn-mc` and its hooks are unchanged; mission-control stays in this repo for 3.0.0.
+Your `.harness/` needs nothing: every rule file works as written. cairn never rewrites your `.harness/` without your approval, and an approved edit adds or replaces one line; files are never regenerated. `/cairn-mc` and its hooks are unchanged; mission-control stays in this repo for 3.0.0.
 
 cairn 3.0 installs from this repository under the same marketplace name, so uninstall 2.0 first:
 
@@ -41,9 +41,9 @@ cairn 3.0 installs from this repository under the same marketplace name, so unin
 /plugin install cairn@cairn-marketplace
 ```
 
-New in 3.0: rules can carry evidence and an `applies when:` trigger; `/cairn-doctor` reports each rule as verified, stale, unverifiable or legacy; your corrections are queued as rule candidates that `/cairn-retro` shows you, and nothing is applied without your approval; `STATE.md` has a published schema.
+New in 3.0: rules can carry evidence and an `applies when:` trigger; `/cairn-doctor` reports each rule as verified, stale, unverifiable or legacy; your corrections are queued as rule candidates that `/cairn-retro` shows you, and nothing is applied without your approval; `STATE.md` has a published schema. A 2.0 `STATE.md` validates unchanged when its frontmatter stays within the 1,024 B cap and it has `goal` and `key_info`; one over the cap, without frontmatter, or missing `goal` or `key_info` reports an error, and [`docs/schemas/state-v1.md`](docs/schemas/state-v1.md) gives the one-line fix for each.
 
-Rules without an evidence line are legacy. Doctor lists them and does not fail them, and cairn never rewrites them. Your first session after the update prints `cairn updated 0.51.16 -> 3.0.0` once. The full note is in [`CHANGELOG.md`](CHANGELOG.md).
+Rules without an evidence line are legacy. Doctor lists them and does not fail them, and cairn never rewrites them without your approval; add evidence when a rule is next edited, or leave it. Your first session after the update prints `cairn updated 0.51.16 -> 3.0.0` once. That notice is hook output, which reaches Claude as context, so you see it only if Claude relays it. It ends with advice to run `/cairn-setup` or `/cairn-doctor`; the advice is optional, and `/cairn-setup` on an existing harness only inserts or annotates lines you approve. cairn 3.0 documents Python 3.11 (CI runs 3.11). The full note is in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Commands
 
@@ -56,6 +56,7 @@ Rules without an evidence line are legacy. Doctor lists them and does not fail t
 | `/cairn-review-pr <url>` | Reviews a PR with cairn's security checklist; drafts first, posts only when you confirm. |
 | `/cairn-retro` | Proposes harness updates from this session's evidence. |
 | `/cairn-mc` | Opens the local cost dashboard. |
+| `/cairn-release rc\|final` | Cuts an rc tag or a final release. |
 | `/cairn-teardown` | Removes the marker and `.cairn/`, and reports anything left behind. |
 
 Day-to-day work needs no command: once set up, just ask Claude for a change and cairn routes it.
