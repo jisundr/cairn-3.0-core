@@ -1,6 +1,6 @@
 # Queued rule proposals
 
-The Stop hook (`hooks/signals.sh record`) turns user corrections and fail-then-different-success Bash pairs into files in `.cairn/proposals/` (self-ignored, removed by `/cairn-teardown`). No model call; `proposals.py` extracts by cue words and drops, never redacts, any text that looks like a credential (URLs with userinfo, bearer or basic auth, `-p`/`-u user:pw` forms, key and token prefixes, long base64 or hex). SessionStart prints only the count.
+The Stop hook (`hooks/signals.sh record`) turns user corrections and fail-then-different-success Bash pairs into files in `.cairn/proposals/` (self-ignored, removed by `/cairn-teardown`). No model call; `proposals.py` extracts by cue words. Stored text must pass an allow-list: plain words, numbers up to 6 digits, value-less flags, short paths and `@scope/pkg`. Anything else (`=`, `://`, `$`, `user:value`, quotes, long mixed runs, over 300 chars) drops the whole text, never redacted or cut. A credential blacklist is a second layer. SessionStart prints only the count.
 
 ## Queue contract
 
@@ -11,13 +11,13 @@ One `<id>.json` per signal, one compact line, keys in this order:
 | `schema` | `1` |
 | `id` | 12 hex, sha1 of the lowercased, punctuation-stripped signal |
 | `type` | `correction` or `failure` |
-| `signal`, `context` | the user's words (<= 300); for a failure its command name and first argument only, with the error plus `worked: <cmd name and first argument>` (<= 200) |
+| `signal`, `context` | the user's words (<= 300); for a failure its command name and first plain argument only, with the error line when it passes the allow-list, else empty, plus `worked: <cmd name and first argument>` (<= 200) |
 | `status` | `queued`, `approved`, `dropped` |
 | `session`, `time` | first sighting |
 | `last_seen`, `count`, `seen` | latest sighting, total, newest 10 `[session, time]` pairs |
 | `resolved`, `applied_to`, `note` | time of approve or drop, `<file>:<line>`, reason (<= 120) |
 
-A repeat of a queued id merges (`count` +1). Approved and dropped entries stay 90 days so they do not resurface; queued ones expire 30 days after `last_seen`. At most 5 new per source session (2 of them failures) and 25 queued; a correction at the cap replaces the weakest queued failure. Failures need a retry that shares the tool or a path, and skip `grep`, `diff`, `test`, `find`, `ls` and the like. `.cairn/` is 0700, files 0600; writers take a lock (`.lock`) and a unique tmp name. Dotfiles: `.pos-<session>` (read offset, swept after 30 days), `.announced`, `.lock`.
+A repeat of a queued id merges (`count` +1). Approved and dropped entries stay 90 days so they do not resurface; queued ones expire 30 days after `last_seen`. At most 5 new per source session (2 of them failures) and 25 queued; a correction at the cap replaces the weakest queued failure. Failures need a retry in the same tool family (npm/pnpm/yarn, pip/uv, python, node/deno, docker/podman, make) or sharing a path, and skip `grep`, `diff`, `test`, `find`, `ls`, `cd`. Modes: `.cairn/` and `proposals/` 0700; `<id>.json`, `.pos-*`, `.lock`, `.announced` 0600; `.cairn/.gitignore` 0644 by design (only `*`). Writers take `.lock`; `record` waits 3 s (hook timeout 5 s) and retries next Stop, `apply` and `mark` wait 10 s. Dotfiles: `.pos-<id up to 48 chars>-<8 hex of sha1(id)>` (read offset, swept after 30 days), `.announced`, `.lock`; stale `.tmp.*.part` go after 1 h.
 
 ## Review (from `/cairn-retro`)
 
