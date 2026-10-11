@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Validate marketplace (strict)
+        run: claude plugin validate . --strict
+      - name: Validate plugin (strict)
+        run: claude plugin validate plugin --strict
+      - name: Budget gate
+        run: python tools/budget.py
+      - name: Mission-control sync check
+        run: python tools/sync_mission_control.py --check
+      - name: Tests
+        run: |
+          pip install pytest
+          python -m pytest tools/
+      - name: Hook selftests
+        run: |
+          for s in plugin/hooks/*.sh plugin/skills/*/*.sh; do
+            "$s" --selftest
+          done
