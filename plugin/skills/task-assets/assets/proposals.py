@@ -37,6 +37,7 @@ KEEP_DAYS = 90
 SIGNAL_MAX = 300
 CONTEXT_MAX = 200
 NOTE_MAX = 120
+FAIL_MAX = 2
 LOCK_WAIT = 10.0
 LOCK_STALE = 30.0
 SCAN_MAX = 2_000_000
@@ -62,6 +63,10 @@ SECRET_CI = [
 SECRET_CS = [r"AKIA\w{12,}",
              r"\b(?=[A-Za-z0-9]*[a-z])(?=[A-Za-z0-9]*[A-Z])(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{10,}\b"]
 SECRET_RE = re.compile("|".join(["(?i:%s)" % p for p in SECRET_CI] + SECRET_CS))
+# commands whose exit 1 is a normal outcome or whose failure says nothing a rule could use
+QUIET_CMDS = {"grep", "egrep", "fgrep", "rg", "diff", "cmp", "test", "[", "find", "which", "command",
+              "type", "ls", "cat"}
+NOISE_LINE_RE = re.compile(r"^\W*rtk\b", re.I)
 TS_FMT = "%Y-%m-%dT%H:%M:%SZ"
 
 
@@ -225,7 +230,7 @@ def user_text(entry):
 
 
 def is_correction(text):
-    if not 3 <= len(text) <= 600 or text[0] in "</":
+    if not 3 <= len(text) <= 600 or text[0] in "</" or re.match(r"error[: ]", text, re.I):
         return False
     return bool(CUE_RE.search(text[:80].replace("’", "'")))
 
@@ -235,6 +240,29 @@ def result_text(block):
     if isinstance(content, list):
         content = " ".join(b.get("text", "") for b in content if isinstance(b, dict))
     return content if isinstance(content, str) else ""
+
+
+def first_tokens(cmd):
+    """First word of each pipeline or && segment, path prefix and env assignments dropped."""
+    out = []
+    for seg in re.split(r"&&|\|\||[;|]", cmd):
+        words_ = [w for w in seg.split() if not re.match(r"\w+=", w)]
+        if words_ and words_[0] == "rtk" and len(words_) > 1:
+            words_ = words_[1:]
+        if words_:
+            out.append(words_[0].rsplit("/", 1)[-1])
+    return out
+
+
+def path_args(cmd):
+    return {w.strip("\"'") for w in cmd.split()[1:]
+            if not w.startswith("-") and ("/" in w or re.search(r"\.\w{1,5}$", w))}
+
+
+def related(failed, worked):
+    """The retry is the same tool or touches the same path; anything else is a coincidence."""
+    a, b = first_tokens(failed), first_tokens(worked)
+    return bool(a and b and a[0] == b[0]) or bool(path_args(failed) & path_args(worked))
 
 
 def extract(lines, session_time):
@@ -268,10 +296,12 @@ def extract(lines, session_time):
                 cmd, body = bash[b["tool_use_id"]], result_text(b)
                 if b.get("is_error") is True and body.startswith("Exit code"):
                     lines_ = [x for x in body.splitlines()[1:] if x.strip()]
-                    failed = (cmd, lines_[0] if lines_ else body.splitlines()[0],
-                              clean_ts(e.get("timestamp") or session_time))
+                    err = lines_[0] if lines_ else body.splitlines()[0]
+                    quiet = QUIET_CMDS & set(first_tokens(cmd))
+                    failed = None if quiet or NOISE_LINE_RE.match(err) else (
+                        cmd, err, clean_ts(e.get("timestamp") or session_time))
                 else:
-                    if failed and cmd != failed[0] and not b.get("is_error"):
+                    if failed and cmd != failed[0] and not b.get("is_error") and related(failed[0], cmd):
                         short = " ".join(failed[0].split()[:2])
                         ctx = collapse("%s | worked: %s" % (collapse(failed[1], 100),
                                                             " ".join(cmd.split()[:2])), CONTEXT_MAX)
@@ -282,10 +312,10 @@ def extract(lines, session_time):
 
 def read_pos(directory, session):
     try:
-        off, rec = (directory / (".pos-" + session)).read_text().split()
-        return int(off), int(rec)
-    except (OSError, ValueError):
-        return 0, 0
+        parts = (directory / (".pos-" + session)).read_text().split()
+        return int(parts[0]), int(parts[1]), int(parts[2]) if len(parts) > 2 else 0
+    except (OSError, ValueError, IndexError):
+        return 0, 0, 0
 
 
 def scan(transcript, offset):
@@ -329,23 +359,26 @@ def record(root, session, transcript):
     directory = qdir(root)
     directory.mkdir(parents=True, exist_ok=True)
     sweep(directory)
-    offset, recorded = read_pos(directory, session)
+    offset, recorded, fails = read_pos(directory, session)
     got = scan(transcript, offset)
     if got is None:
         return
     chunk, new_offset = got
     lines = [x.decode("utf-8", errors="replace") for x in chunk.split(b"\n")]
     signals = list(extract(lines, stamp(now())))
-    signals.sort(key=lambda s: s["type"] != "correction")
     with locked(directory):
-        recorded = merge(directory, session, signals, recorded)
-        (directory / (".pos-" + session)).write_text("%d %d\n" % (new_offset, recorded))
+        recorded, fails = merge(directory, session, signals, recorded, fails)
+        (directory / (".pos-" + session)).write_text("%d %d %d\n" % (new_offset, recorded, fails))
 
 
-def merge(directory, session, signals, recorded):
-    """Fold signals into the queue; returns the session's recorded count. Call under locked()."""
-    open_count = len(queued(directory))
-    for s in signals:
+def merge(directory, session, signals, recorded, fails):
+    """Fold signals into the queue; returns the session's (recorded, fails). Call under locked().
+
+    Corrections go first and may evict the weakest queued failure at the cap, so
+    failures cannot starve them; a session adds at most FAIL_MAX failures.
+    """
+    items = queued(directory)
+    for s in sorted(signals, key=lambda s: s["type"] != "correction"):
         sid = signal_id(s["signal"])
         existing = load(directory / (sid + ".json"))
         if existing:
@@ -355,15 +388,26 @@ def merge(directory, session, signals, recorded):
             existing["last_seen"] = max(existing.get("last_seen", ""), s["time"])
             existing["seen"] = (existing.get("seen", []) + [[session, s["time"]]])[-SEEN_MAX:]
             save(directory, existing)
-        elif recorded < N_SESSION and open_count < QUEUE_MAX:
-            save(directory, {"schema": 1, "id": sid, "type": s["type"], "signal": s["signal"],
-                             "context": s["context"], "status": "queued", "session": session,
-                             "time": s["time"], "last_seen": s["time"], "count": 1,
-                             "seen": [[session, s["time"]]], "resolved": None,
-                             "applied_to": None, "note": ""})
-            recorded += 1
-            open_count += 1
-    return recorded
+            continue
+        if recorded >= N_SESSION or (s["type"] == "failure" and fails >= FAIL_MAX):
+            continue
+        if len(items) >= QUEUE_MAX:
+            weak = sorted((e for e in items if e.get("type") == "failure"),
+                          key=lambda e: (e["count"], e["last_seen"]))
+            if s["type"] != "correction" or not weak:
+                continue
+            with contextlib.suppress(OSError):
+                (directory / (weak[0]["id"] + ".json")).unlink()
+            items = [e for e in items if e["id"] != weak[0]["id"]]
+        entry = {"schema": 1, "id": sid, "type": s["type"], "signal": s["signal"],
+                 "context": s["context"], "status": "queued", "session": session,
+                 "time": s["time"], "last_seen": s["time"], "count": 1,
+                 "seen": [[session, s["time"]]], "resolved": None, "applied_to": None, "note": ""}
+        save(directory, entry)
+        items.append(entry)
+        recorded += 1
+        fails += s["type"] == "failure"
+    return recorded, fails
 
 
 # --- review: list, apply, mark -------------------------------------------

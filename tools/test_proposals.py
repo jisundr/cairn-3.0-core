@@ -173,11 +173,17 @@ def test_refused_tool_calls_are_not_failures(proj):
     assert queue(proj) == []
 
 
-def test_corrections_rank_before_failures_at_cap(proj):
-    fail = bash_pair("a", "bad cmd", "Exit code 1\nerr", True) + bash_pair("b", "good cmd", "ok", False)
-    entries = fail + [user("No, use thing %d instead" % i) for i in range(5)]
-    record(proj, entries)
-    assert {e["type"] for e in queue(proj)} == {"correction"}
+def fail_ok(n, bad="make tset", good="make test"):
+    return bash_pair("f%d" % n, bad, "Exit code 2\nerr %d" % n, True) + bash_pair("g%d" % n, good, "ok", False)
+
+
+def test_corrections_rank_before_failures_within_a_session(proj):
+    pairs = []
+    for i in range(4):
+        pairs += fail_ok(i, "make tset%d" % i, "make test%d" % i)
+    record(proj, pairs + [user("No, use thing %d instead" % i) for i in range(4)])
+    types = sorted(e["type"] for e in queue(proj))
+    assert types == ["correction"] * 4 + ["failure"]
 
 
 def test_queue_cap_stops_new_but_merges_continue(proj):
@@ -637,3 +643,65 @@ def test_fifo_and_directory_transcripts_return_at_once(proj):
                             "--transcript", str(target)], capture_output=True, text=True, timeout=10)
         assert r.returncode == 0 and r.stdout == "" and time.monotonic() - t < 2
     assert queue(proj) == []
+
+
+@pytest.mark.parametrize("bad", ["grep -r foo src", "/usr/bin/egrep x y", "rg needle", "diff a b", "test -f x",
+                                 "[ -d x ]", "find . -name x", "which node", "command -v jq", "type foo",
+                                 "ls missing", "cat missing.txt", "cd src && grep x y", "cat f | grep x",
+                                 "rtk grep x", "FOO=1 grep x y"])
+def test_quiet_commands_are_not_failures(proj, bad):
+    record(proj, fail_ok(1, bad, bad.split()[-1] + " ok"))
+    assert queue(proj) == []
+
+
+def test_failure_needs_a_related_success(proj):
+    record(proj, fail_ok(1, "make tset", "git status"), session="a", name="a.jsonl")
+    assert queue(proj) == []
+    record(proj, fail_ok(2, "python3 run.py src/app.py", "pytest src/app.py"), session="b", name="b.jsonl")
+    assert [e["signal"] for e in queue(proj)] == ["python3 run.py"]
+
+
+def test_error_text_and_rtk_hint_are_not_signals(proj):
+    record(proj, [user("Error: tool call failed, no more tries"), user("Error no such file")])
+    pair = bash_pair("a", "make tset", "Exit code 2\n[rtk] hint: use rtk make", True) + \
+        bash_pair("b", "make test", "ok", False)
+    record(proj, pair, session="r", name="r.jsonl")
+    assert queue(proj) == []
+
+
+def test_at_most_two_failures_per_session_across_passes(proj):
+    tp = proj / "t.jsonl"
+    entries = []
+    for i in range(3):
+        entries += fail_ok(i, "make tset%d" % i, "make test%d" % i)
+    write(tp, entries)
+    run("record", "--root", proj, "--session", "s1", "--transcript", tp)
+    assert [e["type"] for e in queue(proj)] == ["failure"] * 2
+    with open(tp, "a") as fh:
+        for e in fail_ok(7, "make tsetx", "make testx"):
+            fh.write(json.dumps(e) + "\n")
+    run("record", "--root", proj, "--session", "s1", "--transcript", tp)
+    assert len(queue(proj)) == 2
+
+
+def _fill(proj, kind, n):
+    d = proj / ".cairn/proposals"
+    for i in range(n):
+        pr.save(d, {"schema": 1, "id": "%012x" % i, "type": kind, "signal": "old %s %d" % (kind, i),
+                    "context": "", "status": "queued", "session": "x", "time": ts(i), "last_seen": ts(i),
+                    "count": 1, "seen": [], "resolved": None, "applied_to": None, "note": ""})
+
+
+def test_correction_evicts_oldest_failure_at_the_cap(proj):
+    _fill(proj, "failure", pr.QUEUE_MAX)
+    record(proj, [user("No, brand new thing")])
+    q = queue(proj)
+    assert len(q) == pr.QUEUE_MAX
+    assert sum(e["type"] == "correction" for e in q) == 1
+    assert not (proj / ".cairn/proposals" / ("%012x.json" % (pr.QUEUE_MAX - 1))).exists()
+
+
+def test_failure_never_evicts_a_correction_at_the_cap(proj):
+    _fill(proj, "correction", pr.QUEUE_MAX)
+    record(proj, fail_ok(1))
+    assert {e["type"] for e in queue(proj)} == {"correction"} and len(queue(proj)) == pr.QUEUE_MAX
