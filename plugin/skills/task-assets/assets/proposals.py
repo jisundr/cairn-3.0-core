@@ -57,10 +57,12 @@ SECRET_CI = [
     r"secret", r"token", r"passw", r"credential", r"api[ _-]?key|secret[ _-]?key", r"private[ _-]?key",
     r"\b(?:access|auth|ssh|signing|encryption)[ _-]?key", r"\bkey\s*[:=]",
     r"sk-[\w-]{16,}", r"\bgh[pousr]_\w+", r"github_pat_", r"BEGIN [A-Z ]*PRIVATE", r"\beyJ[\w-]{5,}\.",
-    r"(?<![\w-])-p\S", r"(?<![\w-])-u\s*\S+:\S+", r"[A-Za-z0-9_+-]{32,}", r"[A-Za-z0-9+/]{16,}={1,2}",
+    r"(?<![\w-])-p\S", r"(?<![\w-])(?<!mkdir )-p\s+\S", r"(?<![\w-])-u\s*\S+:\S+",
+    r"(?<![\w-])-k\s+\S", r"--user\s+\S+:", r"cookie:", r"set-cookie", r"\bpass(?:wd|word|phrase)?\b\s*[:=]", r"\bpw\b",
+    r"passphrase", r"export\s+\w+=", r"glpat-", r"(?<!\d)(?:\d[ -]?){13,19}(?!\d)", r"[A-Za-z0-9_+-]{32,}", r"[A-Za-z0-9+/]{16,}={1,2}",
     r"\b(?=\w*[A-Za-z])(?=\w*\d)\w{6,}[!@#$%^&*]",
 ]
-SECRET_CS = [r"AKIA\w{12,}",
+SECRET_CS = [r"AKIA\w{12,}", r"\bSG\.",
              r"\b(?=[A-Za-z0-9]*[a-z])(?=[A-Za-z0-9]*[A-Z])(?=[A-Za-z0-9]*\d)[A-Za-z0-9]{10,}\b"]
 SECRET_RE = re.compile("|".join(["(?i:%s)" % p for p in SECRET_CI] + SECRET_CS))
 # commands whose exit 1 is a normal outcome or whose failure says nothing a rule could use
@@ -70,6 +72,21 @@ NOISE_LINE_RE = re.compile(r"^\W*rtk\b", re.I)
 ID_RE = re.compile(r"[0-9a-f]{12}\Z")
 EVIDENCE_RE = re.compile(r" \| evidence: (?:path|cmd|correction):\S")
 TS_FMT = "%Y-%m-%dT%H:%M:%SZ"
+WORD_MAX = 20
+PATH_MAX = 60
+EDGE = ",.;:!?()\"'`\u201c\u201d\u2018\u2019"
+WORD_RE = re.compile(r"[^\W\d_]+(?:[-'\u2019+][^\W\d_]+)*\Z")
+NUM_RE = re.compile(r"\d{1,6}\Z")
+FLAG_RE = re.compile(r"(?:-[A-Za-z]{1,3}|--[A-Za-z]+(?:-[A-Za-z]+)*)\Z")
+SEG_RE = re.compile(r"[A-Za-z0-9._~-]+\Z")
+SCOPE_RE = re.compile(r"@[A-Za-z][A-Za-z0-9._-]*/[A-Za-z0-9._-]+\Z")
+RUN_RE = re.compile(r"[A-Za-z0-9]{12,}")
+ENTROPY_RE = re.compile(r"[A-Za-z0-9+_-]{16,}")
+NAME_RE = re.compile(r"[A-Za-z][A-Za-z0-9._-]*\Z")
+WRAPPERS = {"sudo", "time", "nohup", "env", "rtk"}
+FAMILIES = [{"npm", "pnpm", "yarn", "bun", "npx", "pnpx"}, {"pip", "pip3", "pipx", "uv"},
+            {"python", "python3"}, {"node", "nodejs", "deno", "bun"}, {"docker", "podman"},
+            {"make", "gmake"}]
 
 
 def now():
@@ -98,6 +115,49 @@ def clean_ts(text):
 def is_secret(text):
     """True when text looks like it carries a credential; such text is dropped, never redacted."""
     return bool(SECRET_RE.search(text))
+
+
+def token_ok(tok):
+    """True when one whitespace token is a plain word, small number, value-less flag or a short safe path."""
+    tok = tok.strip(EDGE)
+    if not tok:
+        return True
+    if not re.search(r"[^\W_]", tok):
+        return len(tok) <= 4 and not re.search(r"[=:$@\"'`]", tok)
+    for run in ENTROPY_RE.findall(tok):
+        low, up, dig = re.search("[a-z]", run), re.search("[A-Z]", run), re.search(r"\d", run)
+        if (low and up) or (dig and (low or up)):
+            return False
+    if WORD_RE.match(tok) and len(tok) <= WORD_MAX:
+        return True
+    if NUM_RE.match(tok) or FLAG_RE.match(tok):
+        return True
+    if len(tok) > PATH_MAX:
+        return False
+    if tok.startswith("@"):
+        if not SCOPE_RE.match(tok):
+            return False
+        tok = tok[1:]
+    segs = [x for x in tok.split("/") if x]
+    return bool(segs) and all(SEG_RE.match(x) and seg_ok(x) for x in segs)
+
+
+def seg_ok(seg):
+    if RUN_RE.search(seg) or (seg.isdigit() and len(seg) > 6):
+        return False
+    mixed = re.search("[A-Za-z]", seg) and re.search(r"\d", seg)
+    return not (len(seg) >= 10 and mixed and not re.search(r"[._-]", seg))
+
+
+def text_ok(text):
+    """The allow-list for stored text: whole or not at all, never redacted or cut."""
+    flat = " ".join(text.split())
+    if not flat or len(flat) > SIGNAL_MAX:
+        return False
+    for t in (text, re.sub(r"[\r\n]+", "", text)):
+        if is_secret(t) or not all(token_ok(x) for x in t.split()):
+            return False
+    return True
 
 
 def collapse(text, limit):
@@ -286,10 +346,49 @@ def path_args(cmd):
             if not w.startswith("-") and ("/" in w or re.search(r"\.\w{1,5}$", w))}
 
 
+def norm_cmd(cmd):
+    """The command without leading `cd <dir> &&`, env assignments and sudo/time/nohup/env/rtk."""
+    s = cmd.strip()
+    while s:
+        m = re.match(r"cd\s+\S+\s*(?:&&|;)\s*", s)
+        if m:
+            s = s[m.end():]
+            continue
+        head, _, rest = s.partition(" ")
+        if re.match(r"[A-Za-z_]\w*=\S*\Z", head) or head in WRAPPERS:
+            s = rest.strip()
+            continue
+        break
+    return s
+
+
+def cmd_name(cmd):
+    """Plain command name of a normalised command, or None when it is not one."""
+    toks = norm_cmd(cmd).split()
+    name = toks[0].rsplit("/", 1)[-1] if toks else ""
+    return name if NAME_RE.match(name) and token_ok(name) else None
+
+
+def brief(cmd):
+    """`<command> <first argument>` when the argument is plainly a word, flag or file name, else the command."""
+    name = cmd_name(cmd)
+    toks = norm_cmd(cmd).split()
+    if name and len(toks) > 1:
+        arg = toks[1]
+        if arg == arg.strip(EDGE) and not re.search(r"[/@=:]", arg) and token_ok(arg):
+            return name + " " + arg
+    return name
+
+
 def related(failed, worked):
-    """The retry is the same tool or touches the same path; anything else is a coincidence."""
-    a, b = first_tokens(failed), first_tokens(worked)
-    return bool(a and b and a[0] == b[0]) or bool(path_args(failed) & path_args(worked))
+    """The retry is the same tool family or touches the same path; anything else is a coincidence."""
+    a, b = cmd_name(failed), cmd_name(worked)
+    if not a or not b or "cd" in (a, b):
+        return False
+    a, b = (re.sub(r"^python3\.\d+\Z", "python3", n) for n in (a, b))
+    if a == b or any(a in f and b in f for f in FAMILIES):
+        return True
+    return bool(path_args(norm_cmd(failed)) & path_args(norm_cmd(worked)))
 
 
 def extract(lines, session_time):
@@ -306,7 +405,7 @@ def extract(lines, session_time):
         kind = e.get("type")
         if kind == "user":
             text = user_text(e)
-            if text and is_correction(text) and not is_secret(text):
+            if text and is_correction(text) and text_ok(text):
                 yield {"type": "correction", "signal": collapse(text, SIGNAL_MAX), "context": "",
                        "time": clean_ts(e.get("timestamp") or session_time)}
         content = (e.get("message") or {}).get("content")
@@ -324,16 +423,18 @@ def extract(lines, session_time):
                 if b.get("is_error") is True and body.startswith("Exit code"):
                     lines_ = [x for x in body.splitlines()[1:] if x.strip()]
                     err = lines_[0] if lines_ else body.splitlines()[0]
-                    quiet = QUIET_CMDS & set(first_tokens(cmd))
-                    failed = None if quiet or NOISE_LINE_RE.match(err) else (
+                    quiet = QUIET_CMDS & (set(first_tokens(cmd)) | {cmd_name(cmd)})
+                    failed = None if quiet or cmd_name(cmd) in (None, "cd") or NOISE_LINE_RE.match(err) else (
                         cmd, err, clean_ts(e.get("timestamp") or session_time))
                 else:
                     if failed and cmd != failed[0] and not b.get("is_error") and related(failed[0], cmd):
-                        short = " ".join(failed[0].split()[:2])
-                        ctx = collapse("%s | worked: %s" % (collapse(failed[1], 100),
-                                                            " ".join(cmd.split()[:2])), CONTEXT_MAX)
+                        parts = [collapse(failed[1], 100)] if text_ok(failed[1]) else []
+                        if brief(cmd):
+                            parts.append("worked: " + brief(cmd))
+                        ctx = collapse(" | ".join(parts), CONTEXT_MAX)
                         if not is_secret(failed[0] + " " + cmd + " " + ctx):
-                            yield {"type": "failure", "signal": short, "context": ctx, "time": failed[2]}
+                            yield {"type": "failure", "signal": brief(failed[0]), "context": ctx,
+                                   "time": failed[2]}
                     failed = None
 
 
