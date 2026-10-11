@@ -190,8 +190,34 @@ def _static_prefix(glob):
     return "/".join(parts)
 
 
+def _norm(value):
+    """Strip whitespace and leading ./ ; "." alone becomes the root, ""."""
+    value = value.strip()
+    while value.startswith("./"):
+        value = value[2:].lstrip("/")
+    return "" if value == "." else value
+
+
+def relativize(paths, root):
+    """Make --select paths root-relative; absolute ones outside root are dropped."""
+    base = Path(root).resolve()
+    out = []
+    for p in paths:
+        if p.startswith("/"):
+            try:
+                rel = Path(p).resolve().relative_to(base).as_posix()
+            except ValueError:
+                continue
+            p = "" if rel == "." else rel + ("/" if p.endswith("/") and rel != "." else "")
+        out.append(_norm(p))
+    return out
+
+
 def _glob_hits(glob, path):
-    path = path.strip()
+    glob = _norm(glob)
+    path = _norm(path)
+    if path == "":
+        return True
     if _glob_regex(glob).fullmatch(path.rstrip("/")) or _glob_regex(glob).fullmatch(path.rstrip("/") + "/x"):
         return True
     if path.endswith("/"):
@@ -258,7 +284,8 @@ def main(argv=None):
     args = ap.parse_args(argv)
     results = scan(args.root)
     if args.select is not None:
-        loaded = [r for r in results if matches(r, args.select, args.kind)]
+        select = relativize(args.select, args.root)
+        loaded = [r for r in results if matches(r, select, args.kind)]
         if args.json:
             print(json.dumps(loaded, indent=2))
         else:

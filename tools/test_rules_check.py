@@ -165,6 +165,24 @@ def test_paths_nesting_and_file_globs():
     assert not rc.matches(rule, ["docs/"])
 
 
+def test_dot_slash_prefix_is_ignored():
+    assert rc.matches({"trigger": "paths:./src/**"}, ["src/a.py"])
+    assert rc.matches({"trigger": "paths:src/**"}, ["./src/a.py"])
+    assert rc.matches({"trigger": "paths:./docs"}, ["./docs/x.md"])
+    assert not rc.matches({"trigger": "paths:./src/**"}, ["./docs/a.md"])
+
+
+def test_select_relativizes_absolute_paths(tmp_path):
+    root = harness(tmp_path, standards="## A\n- src | applies when: paths:src/**\n- docs | applies when: paths:docs/**\n")
+    base = [sys.executable, str(CHECKER), "--root", str(root), "--select"]
+    inside = subprocess.run(base + [str(tmp_path / "src/a.py")], capture_output=True, text=True)
+    assert inside.returncode == 0 and "loads 1 of 2" in inside.stdout and "src" in inside.stdout
+    outside = subprocess.run(base + ["/elsewhere/src/a.py"], capture_output=True, text=True)
+    assert outside.returncode == 0 and "loads 0 of 2" in outside.stdout
+    dotted = subprocess.run(base + ["./docs/x.md"], capture_output=True, text=True)
+    assert "loads 1 of 2" in dotted.stdout and "docs" in dotted.stdout
+
+
 def test_kind_trigger_and_malformed_fails_open():
     rule = {"trigger": "kind:review, research"}
     assert rc.matches(rule, [], "review")
