@@ -613,6 +613,27 @@ def test_benign_corrections_are_recorded(proj, text):
     assert [e["signal"] for e in queue(proj)] == [text]
 
 
+MIXED_LEAKS = ["hunter2", "Hunter2", "Welcome1", "rover2020", "Guest2024", "trustno1", "Pa55word", "abc123",
+               "tr0ub4dor", "Winter2026", "letmein1", "passw0rd"]
+MIXED_KEEP = ["use ES2022 syntax", "we need oauth2 here", "decode it as base64", "the column is utf8mb4",
+              "run with python3", "bump to node 20", "deploy to s3", "set the timeout to 30s",
+              "flake8 should run in CI", "sha256 the file", "the h264 encoder", "ipv6 only",
+              "wait 100ms between calls", "upgrade to v1.2.3", "the file is utf-8", "`es2020` target"]
+
+
+@pytest.mark.parametrize("word", MIXED_LEAKS)
+def test_mixed_letter_digit_tokens_are_dropped_whole(proj, word):
+    for text in ("no, " + word, "no, the user is " + word + " here", "no, run `%s`" % word):
+        assert not pr.text_ok(text)
+    record(proj, [user("no, " + word)])
+    assert queue(proj) == [] and word.encode() not in stored_bytes(proj)
+
+
+@pytest.mark.parametrize("text", MIXED_KEEP)
+def test_technical_tokens_and_units_are_kept(text):
+    assert pr.text_ok(text)
+
+
 def test_failure_error_line_with_a_secret_is_dropped(proj):
     pair = bash_pair("a", "psql prod", "Exit code 2\nFATAL: could not reach postgres://u:pw@h/db", True) + \
         bash_pair("b", "psql staging", "ok", False)
