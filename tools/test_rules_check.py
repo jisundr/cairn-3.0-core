@@ -420,7 +420,7 @@ def test_legacy_lines_are_capped(tmp_path):
 
 
 def test_overlong_path_evidence_is_stale_and_exits_0(tmp_path):
-    for value in ("src/" + "a" * 300 + "/x.py", "d" * 5000, "src/" + "b" * 300 + "/*.py"):
+    for value in ("a" * 300, "d" * 5000, "x" * 300 + "*", "a" * 300 + "/x.py"):
         root = harness(tmp_path, standards="## A\n- long | evidence: path:%s\n" % value)
         out = subprocess.run([sys.executable, str(CHECKER), "--root", str(root), "--json"],
                              capture_output=True, text=True)
