@@ -149,6 +149,8 @@ def check_rule(rule, root):
     reason = trigger_error(rule.get("trigger"))
     if reason:
         return "malformed", reason
+    if EV_DELIM in rule.get("text", ""):
+        return "malformed", "more than one evidence item"
     if rule.get("evidence") is None:
         return "legacy", "no evidence"
     return _check_evidence(rule["evidence"], root)

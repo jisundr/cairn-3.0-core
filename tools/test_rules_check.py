@@ -70,6 +70,17 @@ def test_typed_preconditions_are_not_rules(tmp_path):
     assert rc.parse_rule_line("- [other] x") is not None
 
 
+def test_second_evidence_item_is_malformed(tmp_path):
+    body = (
+        "## A\n"
+        "- two | evidence: path:a | evidence: path:b\n"
+        "- two typed | evidence: correction:2026-10-11 x | evidence: path:b | applies when: always\n"
+    )
+    (tmp_path / "a").write_text("")
+    root = harness(tmp_path, standards=body)
+    assert [s for _, s in states(root)] == ["malformed", "malformed"]
+
+
 def test_path_evidence_goes_stale_when_file_removed(tmp_path):
     root = harness(tmp_path, standards="## A\n- Keep it | evidence: path:src/a.py\n")
     (tmp_path / "src").mkdir()
