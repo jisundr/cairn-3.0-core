@@ -97,6 +97,17 @@ NAME_ONLY = frozenset("echo printf print login su passwd vault set export kinit 
                       " security aws gcloud az pass".split())
 DIGIT_NAME_RE = re.compile(r"(?:python|pip|pypy|ruby|perl|php|gcc|clang|node|py)\d+(?:\.\d+)*\Z"
                            r"|(?:sha\d+sum|md5sum|base64)\Z")
+ISO_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}\Z")
+IPV4_RE = re.compile(r"(?<![\w.])\d{1,3}(?:\.\d{1,3}){3}(?![\w.])")
+VALUE_CUES = frozenset("pass pw pin otp 2fa mfa totp passcode login logon cred creds username ssn"
+                       " combination".split())
+CODE_CUES = frozenset("pin otp code 2fa mfa totp passcode".split())
+STOPWORDS = frozenset(
+    "a an the is are was were be been being am to of in on at for with and or but not no nor it its this"
+    " that these those my your our their his her i you we they he she me us them as by from if so then than"
+    " too very just also do does did done have has had can could will would should shall may might must"
+    " what which who whom how why when where here there now up down out off over into onto about need needs"
+    " want wants let lets please only again first before after again too".split())
 CLASSES = [("command not found", r"command not found"), ("permission denied", r"permission denied"),
            ("no such file", r"no such file"), ("connection refused", r"connection refused"),
            ("timed out", r"timed? ?out"), ("syntax error", r"syntax error"),
@@ -167,13 +178,31 @@ def seg_ok(seg):
     return not (len(seg) >= 10 and mixed and not re.search(r"[._-]", seg))
 
 
+def bare_value(text):
+    """True when text carries a value a cue word points at: `my pin is 482913`, a long number, an IPv4, a phone."""
+    toks = text.split()
+    low = [t.strip(EDGE).lower() for t in toks]
+    if re.search(r"\d{6,}", text) or IPV4_RE.search(text):
+        return True
+    for t in toks:
+        if len(re.findall(r"\d", t)) >= 7 and not ISO_DATE_RE.match(t.strip(EDGE)):
+            return True
+    for i, w in enumerate(low):
+        near = low[i + 1:i + 4]
+        if w in VALUE_CUES and any(x and x not in STOPWORDS for x in near):
+            return True
+        if w in CODE_CUES and any(re.search(r"\d{4,}", x) for x in near):
+            return True
+    return False
+
+
 def text_ok(text):
     """The allow-list for stored text: whole or not at all, never redacted or cut."""
     flat = " ".join(text.split())
     if not flat or len(flat) > SIGNAL_MAX:
         return False
     for t in (text, re.sub(r"[\r\n]+", "", text)):
-        if is_secret(t) or not all(token_ok(x) for x in t.split()):
+        if is_secret(t) or bare_value(t) or not all(token_ok(x) for x in t.split()):
             return False
     return True
 
