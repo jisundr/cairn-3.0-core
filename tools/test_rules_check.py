@@ -260,9 +260,45 @@ def test_spec_examples_round_trip(tmp_path):
     assert res[3]["trigger"] == "kind:research, review"
 
 
-def test_repo_harness_has_no_malformed():
-    res = rc.scan(ROOT)
-    assert res and not [r for r in res if r["state"] == "malformed"]
+def test_unsafe_path_evidence_is_malformed(tmp_path):
+    body = "## A\n" + "".join("- r%d | evidence: path:%s\n" % (i, v) for i, v in enumerate(
+        ["../x", "/etc/passwd", "a/../b", "**/..", "has space.md", ""]))
+    root = harness(tmp_path, standards=body)
+    assert [s for _, s in states(root)] == ["malformed"] * 6
+
+
+def test_repo_harness_is_classified_as_expected(tmp_path):
+    """The repo's own .harness, plus known non-rule shapes, must count exactly."""
+    repo = ROOT / ".harness"
+    assert (repo / "workflow.md").is_file()
+    for name in rc.FILES:
+        src = repo / name
+        if src.is_file():
+            harness(tmp_path, **{name[:-3]: src.read_text(encoding="utf-8").split("\n", 2)[2]})
+    before = [r for r in rc.scan(tmp_path)]
+    assert before and not [r for r in before if r["state"] == "malformed"]
+    gates = []
+    in_gates = False
+    for line in (repo / "workflow.md").read_text(encoding="utf-8").splitlines():
+        if line.startswith("#"):
+            in_gates = line.lstrip("#").strip().lower().startswith("gates")
+        elif in_gates and line.startswith("- "):
+            gates.append(line[2:].strip())
+    assert gates, "repo workflow.md has no Gates bullets to check"
+    texts = {r["text"] for r in before}
+    assert not texts & set(gates)
+    assert not [t for t in texts if t.lower().startswith("[blocking]")]
+    extra = (
+        "\n## Gates (additive)\n- extra gate one\n- extra gate two\n"
+        "\n## Preconditions\n- [blocking] python >=3.11\n- [warning] command \"jq -V\"\n"
+        "tool-version node >=20   [warning]\n"
+        "\n## Added\n- added rule one\n- added rule two | evidence: correction:2026-10-11 x\n"
+    )
+    wf = tmp_path / ".harness/workflow.md"
+    wf.write_text(wf.read_text(encoding="utf-8") + extra, encoding="utf-8")
+    after = rc.scan(tmp_path)
+    assert len(after) == len(before) + 2
+    assert [r["state"] for r in after[-2:]] == ["legacy", "unverifiable"]
 
 
 def test_cli_report_exit_0_and_select(tmp_path):
