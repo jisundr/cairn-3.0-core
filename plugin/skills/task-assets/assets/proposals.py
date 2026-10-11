@@ -108,6 +108,13 @@ STOPWORDS = frozenset(
     " too very just also do does did done have has had can could will would should shall may might must"
     " what which who whom how why when where here there now up down out off over into onto about need needs"
     " want wants let lets please only again first before after again too".split())
+# letters-plus-digits tokens of 5-9 chars are dropped (hunter2, rover2020) unless plainly technical
+TECH_TOKENS = frozenset(
+    "utf8 utf8mb4 utf-8 base64 base32 sha1 sha256 sha512 md5 es2015 es2016 es2017 es2018 es2019 es2020"
+    " es2021 es2022 es2023 es5 es6 oauth2 oauth python3 python2 k8s s3 ec2 h264 h265 ipv4 ipv6 http2 http3"
+    " vue3 i18n l10n a11y x86 x64 arm64 win32 win64 node18 node20 node22 gpt4 3d flake8".split())
+UNIT_RE = re.compile(r"\d+(?:\.\d+)?(?:ms|px|kb|mb|gb|tb|[smhdxk])\Z", re.I)
+SEMVER_RE = re.compile(r"v\d+(?:\.\d+)*\Z", re.I)
 CLASSES = [("command not found", r"command not found"), ("permission denied", r"permission denied"),
            ("no such file", r"no such file"), ("connection refused", r"connection refused"),
            ("timed out", r"timed? ?out"), ("syntax error", r"syntax error"),
@@ -196,13 +203,23 @@ def bare_value(text):
     return False
 
 
+def mixed_token(text):
+    """True for a 5-9 char token with letters and digits that is not a known technical token."""
+    for t in text.split():
+        t = t.strip(EDGE)
+        if (5 <= len(t) <= 9 and re.search("[A-Za-z]", t) and re.search(r"\d", t) and t.lower() not in TECH_TOKENS
+                and not UNIT_RE.match(t) and not SEMVER_RE.match(t)):
+            return True
+    return False
+
+
 def text_ok(text):
     """The allow-list for stored text: whole or not at all, never redacted or cut."""
     flat = " ".join(text.split())
     if not flat or len(flat) > SIGNAL_MAX:
         return False
     for t in (text, re.sub(r"[\r\n]+", "", text)):
-        if is_secret(t) or bare_value(t) or not all(token_ok(x) for x in t.split()):
+        if is_secret(t) or bare_value(t) or mixed_token(t) or not all(token_ok(x) for x in t.split()):
             return False
     return True
 
