@@ -67,6 +67,7 @@ SECRET_RE = re.compile("|".join(["(?i:%s)" % p for p in SECRET_CI] + SECRET_CS))
 QUIET_CMDS = {"grep", "egrep", "fgrep", "rg", "diff", "cmp", "test", "[", "find", "which", "command",
               "type", "ls", "cat"}
 NOISE_LINE_RE = re.compile(r"^\W*rtk\b", re.I)
+ID_RE = re.compile(r"[0-9a-f]{12}\Z")
 TS_FMT = "%Y-%m-%dT%H:%M:%SZ"
 
 
@@ -86,8 +87,11 @@ def parse_ts(text):
 
 
 def clean_ts(text):
+    """A transcript timestamp clamped to [now - 365 d, now + 1 d]; now when unreadable."""
     dt = parse_ts(text) if isinstance(text, str) else None
-    return stamp(dt) if dt else stamp(now())
+    if dt is None:
+        return stamp(now())
+    return stamp(min(max(dt, now() - timedelta(days=365)), now() + timedelta(days=1)))
 
 
 def is_secret(text):
@@ -102,6 +106,10 @@ def collapse(text, limit):
 def signal_id(text):
     norm = " ".join(re.sub(r"[^a-z0-9]+", " ", text.lower()).split())
     return hashlib.sha1(norm.encode("utf-8")).hexdigest()[:12]
+
+
+def pos_path(directory, session):
+    return directory / (".pos-" + re.sub(r"[^\w.-]", "_", str(session))[:64])
 
 
 def qdir(root):
@@ -202,6 +210,11 @@ def entries(directory):
 def sweep(directory, at=None):
     """Delete queued entries past EXPIRE_DAYS and resolved ones past KEEP_DAYS."""
     at = at or now()
+    if directory.is_dir():
+        for p in directory.glob(".pos-*"):
+            with contextlib.suppress(OSError):
+                if at.timestamp() - p.stat().st_mtime > EXPIRE_DAYS * 86400:
+                    p.unlink()
     for e in entries(directory):
         if e.get("status") == "queued":
             ref, days = parse_ts(e.get("last_seen")), EXPIRE_DAYS
@@ -325,7 +338,7 @@ def extract(lines, session_time):
 
 def read_pos(directory, session):
     try:
-        parts = (directory / (".pos-" + session)).read_text().split()
+        parts = pos_path(directory, session).read_text().split()
         return int(parts[0]), int(parts[1]), int(parts[2]) if len(parts) > 2 else 0
     except (OSError, ValueError, IndexError):
         return 0, 0, 0
@@ -381,7 +394,7 @@ def record(root, session, transcript):
     signals = list(extract(lines, stamp(now())))
     with locked(directory):
         recorded, fails = merge(directory, session, signals, recorded, fails)
-        write_private(directory / (".pos-" + session), "%d %d %d\n" % (new_offset, recorded, fails))
+        write_private(pos_path(directory, session), "%d %d %d\n" % (new_offset, recorded, fails))
 
 
 def merge(directory, session, signals, recorded, fails):
@@ -533,6 +546,8 @@ def insert_position(text, heading):
 
 def cmd_apply(root, pid, fname, section, line):
     directory = qdir(root)
+    if not ID_RE.match(pid):
+        return refuse("id must be 12 hex characters")
     entry = load(directory / (pid + ".json"))
     if not entry:
         return refuse("unknown id " + pid)
@@ -606,6 +621,8 @@ def write_rule(directory, entry, root, name, heading, line):
 
 def cmd_mark(root, pid, note):
     directory = qdir(root)
+    if not ID_RE.match(pid):
+        return refuse("id must be 12 hex characters")
     entry = load(directory / (pid + ".json"))
     if not entry:
         return refuse("unknown id " + pid)

@@ -721,3 +721,42 @@ def test_queue_dirs_are_0700_and_files_0600(proj):
     (e,) = queue(proj)
     run("mark", "--root", proj, e["id"], "dropped")
     assert mode(cairn / "proposals" / (e["id"] + ".json")) == 0o600
+
+
+def test_session_id_cannot_escape_the_queue_directory(proj):
+    record(proj, [user("No, use tabs")], session="../../evil/ses sion")
+    d = proj / ".cairn/proposals"
+    pos = [p.name for p in d.glob(".pos-*")]
+    assert len(pos) == 1 and "/" not in pos[0] and " " not in pos[0]
+    assert not (proj / "evil").exists() and not (proj.parent / "evil").exists()
+    record(proj, [user("No, use tabs")], session="x" * 300, name="u.jsonl")
+    assert max(len(p.name) for p in d.glob(".pos-*")) <= len(".pos-") + 64
+
+
+def test_old_pos_files_are_swept_with_expiry(proj):
+    d = proj / ".cairn/proposals"
+    d.mkdir(parents=True)
+    old, fresh = d / ".pos-old", d / ".pos-fresh"
+    old.write_text("0 0 0\n")
+    fresh.write_text("0 0 0\n")
+    when = time.time() - 31 * 86400
+    os.utime(old, (when, when))
+    pr.sweep(d)
+    assert not old.exists() and fresh.exists()
+
+
+@pytest.mark.parametrize("bad", ["../../evil", "ABCDEF123456", "0123456789a", "0123456789abc", ""])
+def test_ids_are_validated_before_use(proj, bad):
+    assert run("mark", "--root", proj, bad, "dropped").returncode == 1
+    r = apply(proj, bad, "- ok")
+    assert r.returncode == 1 and "12 hex" in r.stdout
+
+
+def test_transcript_timestamps_are_clamped(proj):
+    far_past = (datetime.now(timezone.utc) - timedelta(days=4000)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    far_future = (datetime.now(timezone.utc) + timedelta(days=4000)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    record(proj, [user("No, use tabs", when=far_past), user("Stop, wrong branch", when=far_future)])
+    now_ = datetime.now(timezone.utc)
+    for e in queue(proj):
+        t = datetime.strptime(e["last_seen"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        assert now_ - timedelta(days=366) <= t <= now_ + timedelta(days=1, minutes=1)
