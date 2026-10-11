@@ -893,3 +893,33 @@ def test_hook_is_silent_on_a_read_only_cairn_dir(proj):
         os.chmod(proj / ".cairn", 0o700)
         os.chmod(d, 0o700)
     assert r.returncode == 0 and r.stderr == ""
+
+
+@pytest.mark.parametrize("bad,good,signal", [
+    ("pnpm test", "npm test", "pnpm test"),
+    ("pip install x", "pip3 install x", "pip install"),
+    ("python main.py", "python3.12 main.py", "python main.py"),
+    ("node build.js", "bun build.js", "node build.js"),
+    ("docker build .", "podman build .", "docker build"),
+    ("make all", "gmake all", "make all"),
+    ("FOO=1 cd x && npm test", "yarn test", "npm test"),
+    ("cd foo && make", "cd bar && make", "make"),
+    ("sudo time make deploy", "make build", "make deploy"),
+])
+def test_retry_in_the_same_tool_family_is_recorded(proj, bad, good, signal):
+    record(proj, fail_ok(1, bad, good))
+    assert [e["signal"] for e in queue(proj)] == [signal]
+
+
+@pytest.mark.parametrize("bad,good", [
+    ("git status", "ls"),
+    ("npm test", "pip install x"),
+    ("make all", "docker build ."),
+    ("grep -r x src", "grep -r y src"),
+    ("cd foo", "cd bar"),
+    ("cd foo", "make"),
+    ("make", "cd foo && ls"),
+])
+def test_unrelated_or_quiet_commands_are_not_paired(proj, bad, good):
+    record(proj, fail_ok(1, bad, good))
+    assert queue(proj) == []
