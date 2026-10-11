@@ -16,7 +16,7 @@ from datetime import date
 from pathlib import Path
 
 FILES = ("architecture.md", "standards.md", "environment.md", "workflow.md")
-SKIP_SECTIONS = ("gates", "release")
+SKIP_RE = re.compile(r"(gates|release)\b")
 KINDS = ("research", "build", "review")
 EV_DELIM = " | evidence: "
 TR_DELIM = " | applies when: "
@@ -61,7 +61,7 @@ def iter_rules(root):
             if raw.startswith("#"):
                 section = raw.lstrip("#").strip().lower()
                 continue
-            if section in SKIP_SECTIONS:
+            if SKIP_RE.match(section):
                 continue
             rule = parse_rule_line(raw)
             if rule is not None:

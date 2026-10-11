@@ -46,6 +46,16 @@ def test_non_rules_are_skipped(tmp_path):
     assert states(root) == [("real rule", "legacy")]
 
 
+def test_gates_and_release_variants_are_skipped(tmp_path):
+    body = (
+        "## Gates (additive)\n- python tools/budget.py clean\n\n"
+        "## Release process\n- Tag: v{version}\n\n"
+        "## Gatesmith\n- real rule\n"
+    )
+    root = harness(tmp_path, workflow=body)
+    assert states(root) == [("real rule", "legacy")]
+
+
 def test_path_evidence_goes_stale_when_file_removed(tmp_path):
     root = harness(tmp_path, standards="## A\n- Keep it | evidence: path:src/a.py\n")
     (tmp_path / "src").mkdir()
