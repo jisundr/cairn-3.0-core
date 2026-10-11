@@ -22,7 +22,7 @@ Open an issue with the bug template. Include your cairn version and the output o
 
 CI (`.github/workflows/ci.yml`) runs this gate, the tests, the hook selftests and strict plugin validation on every push and PR; run the gate locally first so the PR starts green. `claude plugin validate . --strict` is worth running too.
 
-The tests include the upgrade test: `tools/upgrade_check.py` runs the 3.0 hooks and scripts over a copy of a 2.0 `.harness/` (`tools/fixtures/upgrade-2.0`) and fails if any file changes. Run it by hand against a real repo with `python tools/upgrade_check.py --repo <dir>`; add `--doctor` to also run `/cairn-doctor` through `claude`.
+The tests include the upgrade test: `tools/upgrade_check.py` runs the 3.0 `session-start.sh` and `signals.sh` hooks, `rules-check.py` and `state_schema.py` over a copy of a 2.0 `.harness/` (`tools/fixtures/upgrade-2.0`) and fails if any file changes. Run it by hand against a real repo with `python tools/upgrade_check.py --repo <dir>`; add `--doctor` to also run `/cairn-doctor` through `claude`. The other hooks, `proposals.py apply` and `mark`, `/cairn-setup`, `/cairn-retro` and `--doctor` are not covered in CI.
 
 On macOS, `plugin/skills/diagrams/stale.sh --selftest` fails: it uses GNU `touch -d`. CI runs it on Ubuntu, and the loop above covers hooks only, so this does not block a local run.
 
