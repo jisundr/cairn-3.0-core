@@ -274,6 +274,24 @@ def test_character_class_evidence_matches_trigger_semantics(tmp_path):
     assert [s for _, s in states(root)] == ["verified", "verified", "verified", "stale"]
 
 
+def test_pathological_globs_return_quickly():
+    import time
+    cases = ["[a]*" * 20 + "b", "*a" * 20 + "*b", "**/*" * 20 + "b", "a**" * 30 + "b"]
+    for glob in cases:
+        start = time.monotonic()
+        assert not rc.matches({"trigger": "paths:" + glob}, ["a" * 40])
+        assert time.monotonic() - start < 1, glob
+    assert rc.matches({"trigger": "paths:a*a*b"}, ["aaxab"])
+    assert rc.matches({"trigger": "paths:src/**/x/**/y.py"}, ["src/a/x/b/c/y.py"])
+
+
+def test_overlong_glob_is_malformed_and_fails_open():
+    long_glob = "src/" + "a" * 200 + "/*.py"
+    assert rc.trigger_error("paths:" + long_glob)
+    assert rc.matches({"trigger": "paths:" + long_glob}, ["docs/x.md"])
+    assert rc.trigger_error("paths:" + "a" * 200) is None
+
+
 def test_kind_trigger_and_malformed_fails_open():
     rule = {"trigger": "kind:review, research"}
     assert rc.matches(rule, [], "review")
