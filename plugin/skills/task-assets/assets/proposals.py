@@ -97,6 +97,11 @@ NAME_ONLY = frozenset("echo printf print login su passwd vault set export kinit 
                       " security aws gcloud az pass".split())
 DIGIT_NAME_RE = re.compile(r"(?:python|pip|pypy|ruby|perl|php|gcc|clang|node|py)\d+(?:\.\d+)*\Z"
                            r"|(?:sha\d+sum|md5sum|base64)\Z")
+CLASSES = [("command not found", r"command not found"), ("permission denied", r"permission denied"),
+           ("no such file", r"no such file"), ("connection refused", r"connection refused"),
+           ("timed out", r"timed? ?out"), ("syntax error", r"syntax error"),
+           ("unauthorized", r"unauthori[sz]ed"), ("invalid", r"\binvalid\b"), ("missing", r"\bmissing\b"),
+           ("failed", r"\bfail(?:ed|ure)?\b"), ("not found", r"not found")]
 FAMILIES = [{"npm", "pnpm", "yarn", "bun", "npx", "pnpx"}, {"pip", "pip3", "pipx", "uv"},
             {"python", "python3"}, {"node", "nodejs", "deno", "bun"}, {"docker", "podman"},
             {"make", "gmake"}]
@@ -404,6 +409,17 @@ def brief(cmd):
     return name
 
 
+def error_tag(body):
+    """`exit N` plus one fixed error class, from the result text; never any of its words."""
+    m = re.match(r"Exit code (\d{1,3})\b", body)
+    parts = ["exit " + m.group(1)] if m else []
+    for tag, rx in CLASSES:
+        if re.search(rx, body[:2000], re.I):
+            parts.append(tag)
+            break
+    return parts
+
+
 def related(failed, worked):
     """The retry is the same tool family or touches the same path; anything else is a coincidence."""
     a, b = cmd_name(failed), cmd_name(worked)
@@ -450,10 +466,10 @@ def extract(lines, session_time):
                     quiet = QUIET_CMDS & (set(first_tokens(cmd)) | {cmd_name(cmd)})
                     odd = not all(token_ok(x) for x in norm_cmd(cmd).split())
                     failed = None if quiet or odd or cmd_name(cmd) in (None, "cd") or NOISE_LINE_RE.match(err) else (
-                        cmd, err, clean_ts(e.get("timestamp") or session_time))
+                        cmd, error_tag(body), clean_ts(e.get("timestamp") or session_time))
                 else:
                     if failed and cmd != failed[0] and not b.get("is_error") and related(failed[0], cmd):
-                        parts = [collapse(failed[1], 100)] if text_ok(failed[1]) else []
+                        parts = list(failed[1])
                         if brief(cmd):
                             parts.append("worked: " + brief(cmd))
                         ctx = collapse(" | ".join(parts), CONTEXT_MAX)
