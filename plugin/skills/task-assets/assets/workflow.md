@@ -1,4 +1,4 @@
-> This repo's rules, for anyone working in it: people, Claude, or another AI tool. A rule here can add or tighten a check; with cairn installed, it can't remove one cairn already runs.
+> This repo's rules, for anyone working in it: people, Claude, or another AI tool. A rule here can add or tighten a check; with cairn installed, it can't remove one cairn already runs. A rule may end `| evidence: path:|cmd:|correction:<value> | applies when: paths:<glob>|kind:<k>`; skip a rule whose trigger misses your task.
 
 ## Branching
 

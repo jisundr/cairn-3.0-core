@@ -12,6 +12,7 @@ Index of this repo's own documentation — for developing cairn, not for a consu
 | [`marketing/`](marketing/) | The public GitHub Pages landing page: `DESIGN-landing.md` (design system), `index.html` (source), `assets/` (images). Deployed by `.github/workflows/pages.yml` on push, not the classic branch-source method. |
 | [`portfolio/`](portfolio/) | External-evaluation material: `PORTFOLIO.md` (case study) and `INTERVIEW-STORIES.md` (STAR narratives). |
 | [`schemas/`](schemas/) | Published contracts other tools read. `state-v1.md` is the STATE.md frontmatter schema; `tools/state_schema.py` validates against it. |
+| [`../plugin/skills/task-assets/assets/rule-format.md`](../plugin/skills/task-assets/assets/rule-format.md) | The rule format: `evidence:` and `applies when:` annotations, legacy rules, how doctor and `--select` read them. Single source, shipped in the plugin; `plugin/skills/task-assets/assets/rules-check.py` is its checker, tested by `tools/test_rules_check.py`. |
 
 ## `specs/`
 
