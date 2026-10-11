@@ -65,3 +65,12 @@ def test_mission_control_hooks_and_command_still_ship():
     commands = [h["command"] for g in hooks["hooks"].values() for e in g for h in e["hooks"]]
     assert any("stop-mc.sh" in c for c in commands)
     assert (ROOT / "plugin/commands/cairn-mc.md").is_file()
+
+
+def test_plugin_version_matches_the_changelog_heading():
+    manifest = json.loads((ROOT / "plugin/.claude-plugin/plugin.json").read_text())
+    headings = [ln[3:].split(" ")[0] for ln in (ROOT / "CHANGELOG.md").read_text().splitlines()
+                if ln.startswith("## ")]
+    assert headings and manifest["version"] == headings[0]
+    parts = manifest["version"].split(".")
+    assert len(parts) == 3 and all(p.isdigit() for p in parts)
