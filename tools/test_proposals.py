@@ -580,6 +580,39 @@ def test_error_text_is_stored_only_as_a_fixed_class(proj, err, frags, tag):
         assert frag.encode() not in stored_bytes(proj)
 
 
+BARE_LEAKS = [
+    "no, my pin is 482913", "no, the otp is 482913", "no, 2fa code 482913", "no, code: 123456",
+    "no, call 555-123-4567", "no, ssn 123-45-6789", "no, ssh to 192.168.1.20",
+    "no, the pass is rover2020", "no, user bob pass bobspw", "no, the creds are bob rover",
+    "no, username alice", "no, use 482913", "no, it is 192.168.1.20", "no, 555-123-4567",
+    "no, 123-45-6789", "no, the combination is left twice", "no, pin 4829", "no, the totp is 4829",
+]
+KEEP = [
+    "no, use pnpm not npm", "don't mock the database in these tests", "put the helper in src/utils/date.ts",
+    "rename it to userId", "we use tabs here", "run the tests with `pnpm test --filter api`",
+    "the handler should return 404", "bump to node 20", "use ES2022 syntax", "set the timeout to 30000",
+    "as of 2026-10-11 use tabs", "exit code 1 means failure",
+]
+
+
+@pytest.mark.parametrize("text", BARE_LEAKS)
+def test_bare_values_are_dropped_whole(proj, text):
+    assert not pr.text_ok(text)
+    record(proj, [user(text)])
+    assert queue(proj) == []
+
+
+@pytest.mark.parametrize("text", KEEP + BENIGN + ALLOW_BENIGN)
+def test_benign_texts_survive_the_value_rules(text):
+    assert pr.text_ok(text)
+
+
+@pytest.mark.parametrize("text", [k for k in KEEP if pr.is_correction(k)])
+def test_benign_corrections_are_recorded(proj, text):
+    record(proj, [user(text)])
+    assert [e["signal"] for e in queue(proj)] == [text]
+
+
 def test_failure_error_line_with_a_secret_is_dropped(proj):
     pair = bash_pair("a", "psql prod", "Exit code 2\nFATAL: could not reach postgres://u:pw@h/db", True) + \
         bash_pair("b", "psql staging", "ok", False)
