@@ -1,7 +1,7 @@
 > This repo's rules, for anyone working in it: people, Claude, or another AI tool. A rule here can add or tighten a check; with cairn installed, it can't remove one cairn already runs.
 
 ## Branching
-- Direct commits to `main`, no feature branches observed
+- Changes go on a feature branch and land by PR to `main`, per CONTRIBUTING.md; version and `CHANGELOG.md` change in the release PR only | evidence: path:CONTRIBUTING.md
 
 ## Commits / PR
 - One artifact per commit + its `docs/REGISTRY.md` line (if it adds an agent) — never a sweep. Version and `CHANGELOG.md` change on release only via `/cairn-release`, not per commit
