@@ -230,7 +230,7 @@ def main(argv):
     errors = 0
     for f in files:
         try:
-            text = f.read_text(encoding="utf-8")
+            text = f.read_text(encoding="utf-8", errors="replace")
         except OSError as e:
             print(f"[ERROR] {f}: {e}")
             errors += 1
