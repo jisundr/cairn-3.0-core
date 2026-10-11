@@ -112,7 +112,7 @@ In a consuming project, cairn writes **only** the paths below — everything els
 | `docs/tasks/_template/`, `docs/product/_template/` | `/cairn-setup`, only if you say yes | your project's — editable copies of cairn's templates |
 | `.harness/local/` | `/cairn-setup --local`, on confirmation | this developer's — never committed |
 | `docs/tasks/<slug>/` | escalated path only | your project's |
-| `.cairn/` | runtime state | cairn's, and self-ignoring |
+| `.cairn/` | runtime state, including `.cairn/proposals/`: your corrections queued as rule candidates, stored as local text only, reviewed with `/cairn-retro` | cairn's, and self-ignoring |
 | `~/.claude/cairn/known-projects.json`, `pricing-check-state.json` | end of each session in a cairn project | cairn's — the list of projects `/cairn-mc` shows, and when its pricing table was last checked |
 | `~/.claude/cairn/.jq-hint` | first session without `jq` | cairn's — an empty flag so the missing-`jq` hint shows only once |
 | The files you actually asked to change | during work | your project's — that's the job |
