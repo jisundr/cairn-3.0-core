@@ -11,6 +11,7 @@ record and count exit 0 on every path (a hook runs them). Mechanical only: no
 model call, no network. Stdlib, Python 3.11.
 """
 import argparse
+import contextlib
 import hashlib
 import importlib.util
 import json
@@ -19,8 +20,14 @@ import re
 import stat
 import sys
 import tempfile
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:  # no flock: fall back to an O_EXCL lock file
+    fcntl = None
 
 N_SESSION = 5
 N_BATCH = 5
@@ -30,6 +37,8 @@ KEEP_DAYS = 90
 SIGNAL_MAX = 300
 CONTEXT_MAX = 200
 NOTE_MAX = 120
+LOCK_WAIT = 10.0
+LOCK_STALE = 30.0
 SCAN_MAX = 2_000_000
 SEEN_MAX = 10
 JACCARD = 0.7
@@ -102,16 +111,63 @@ def load(path):
 
 
 def save(directory, entry):
-    """Atomic write, keys in contract order; mtime is last_seen or resolved."""
+    """Atomic write, keys in contract order; mtime is last_seen or resolved. Call under locked()."""
     directory.mkdir(parents=True, exist_ok=True)
     ordered = {k: entry.get(k) for k in FIELDS}
     target = directory / (entry["id"] + ".json")
-    tmp = directory / (".tmp.%s.%d" % (entry["id"], os.getpid()))
-    tmp.write_text(json.dumps(ordered, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
-    os.replace(tmp, target)
+    fd, tmp = tempfile.mkstemp(prefix=".tmp.", suffix=".part", dir=str(directory))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(ordered, ensure_ascii=False, separators=(",", ":")) + "\n")
+        os.replace(tmp, target)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
     when = parse_ts(entry.get("resolved") or entry.get("last_seen") or "")
     if when:
         os.utime(target, (when.timestamp(), when.timestamp()))
+
+
+@contextlib.contextmanager
+def locked(directory, wait=LOCK_WAIT):
+    """Exclusive lock on the queue directory; TimeoutError after `wait` seconds."""
+    directory.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + wait
+    if fcntl is not None:
+        fd = os.open(str(directory / ".lock"), os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            while True:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except OSError:
+                    if time.monotonic() > deadline:
+                        raise TimeoutError("queue is locked")
+                    time.sleep(0.01)
+            yield
+        finally:
+            os.close(fd)  # closing drops the flock
+        return
+    path = str(directory / ".lock.excl")
+    while True:
+        try:
+            os.close(os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+            break
+        except FileExistsError:
+            try:
+                if time.time() - os.stat(path).st_mtime > LOCK_STALE:
+                    os.unlink(path)
+                    continue
+            except OSError:
+                continue
+            if time.monotonic() > deadline:
+                raise TimeoutError("queue is locked")
+            time.sleep(0.01)
+    try:
+        yield
+    finally:
+        with contextlib.suppress(OSError):
+            os.unlink(path)
 
 
 def entries(directory):
@@ -250,11 +306,17 @@ def record(root, session, transcript):
     text = chunk[:end].decode("utf-8", errors="replace")
     signals = list(extract(text.splitlines(), stamp(now())))
     signals.sort(key=lambda s: s["type"] != "correction")
+    with locked(directory):
+        recorded = merge(directory, session, signals, recorded)
+        (directory / (".pos-" + session)).write_text("%d %d\n" % (offset + end, recorded))
+
+
+def merge(directory, session, signals, recorded):
+    """Fold signals into the queue; returns the session's recorded count. Call under locked()."""
     open_count = len(queued(directory))
     for s in signals:
         sid = signal_id(s["signal"])
-        path = directory / (sid + ".json")
-        existing = load(path)
+        existing = load(directory / (sid + ".json"))
         if existing:
             if existing.get("status") != "queued" or [session, s["time"]] in existing.get("seen", []):
                 continue
@@ -270,7 +332,7 @@ def record(root, session, transcript):
                              "applied_to": None, "note": ""})
             recorded += 1
             open_count += 1
-    (directory / (".pos-" + session)).write_text("%d %d\n" % (offset + end, recorded))
+    return recorded
 
 
 # --- review: list, apply, mark -------------------------------------------
@@ -402,6 +464,17 @@ def cmd_apply(root, pid, fname, section, line):
         state, why = checker.check_rule(parsed, root) if parsed else ("malformed", "not a rule bullet")
         if state == "malformed":
             return refuse("line is malformed: " + why)
+    try:
+        with locked(directory):
+            entry = load(directory / (pid + ".json"))
+            if not entry or entry.get("status") != "queued":
+                return refuse("id %s is %s" % (pid, entry.get("status") if entry else "unknown"))
+            return write_rule(directory, entry, root, name, heading, line)
+    except TimeoutError:
+        return refuse("queue is busy, try again")
+
+
+def write_rule(directory, entry, root, name, heading, line):
     path = Path(root) / ".harness" / name
     if not path.is_file():
         return refuse("missing " + str(path))
@@ -434,6 +507,9 @@ def cmd_apply(root, pid, fname, section, line):
     finally:
         if os.path.exists(tmp):
             os.unlink(tmp)
+    placed, _ = split_physical(target.read_bytes())
+    if [physical_text(x) for x in placed].count(line) != 1:
+        return refuse("line not present after write")
     entry.update(status="approved", resolved=stamp(now()), applied_to="%s:%d" % (name, pos + 1))
     save(directory, entry)
     print("applied to %s:%d" % (name, pos + 1))
@@ -447,8 +523,15 @@ def cmd_mark(root, pid, note):
         return refuse("unknown id " + pid)
     if entry.get("status") != "queued":
         return refuse("id %s is %s" % (pid, entry.get("status")))
-    entry.update(status="dropped", resolved=stamp(now()), note=collapse(note or "", NOTE_MAX))
-    save(directory, entry)
+    try:
+        with locked(directory):
+            entry = load(directory / (pid + ".json"))
+            if not entry or entry.get("status") != "queued":
+                return refuse("id %s is %s" % (pid, entry.get("status") if entry else "unknown"))
+            entry.update(status="dropped", resolved=stamp(now()), note=collapse(note or "", NOTE_MAX))
+            save(directory, entry)
+    except TimeoutError:
+        return refuse("queue is busy, try again")
     print("dropped " + pid)
     return 0
 

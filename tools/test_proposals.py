@@ -533,3 +533,61 @@ def test_apply_lf_file_diff_is_one_line_and_mode_kept(proj):
     new = apply_to(proj, old, mode=0o640).read_bytes()
     assert delta(old, new) == NEW_LINE.encode() and (proj / ".harness/standards.md").stat().st_mode & 0o777 == 0o640
     rules_check(proj)
+
+
+def _apply_worker(args):
+    root, pid, line = args
+    r = subprocess.run(["python3", str(SCRIPT), "apply", "--root", root, pid, "--file", "standards.md",
+                        "--section", "## Naming", "--line", line], capture_output=True, text=True)
+    return r.returncode, r.stdout, r.stderr
+
+
+def test_parallel_applies_lose_no_line_and_duplicate_none(proj):
+    from multiprocessing.pool import ThreadPool
+    for rnd in range(3):
+        before = len((proj / ".harness/standards.md").read_text().splitlines())
+        entries = [user("No, use thing %d-%d instead" % (rnd, i)) for i in range(12)]
+        for k in range(0, 12, 5):
+            record(proj, entries[k:k + 5], session="r%d-%d" % (rnd, k), name="t%d-%d.jsonl" % (rnd, k))
+        # standards.md cap is 40 lines; trim between rounds so each round has room
+        mine = [e for e in queue(proj) if e["status"] == "queued"]
+        assert len(mine) == 12
+        jobs = [(str(proj), e["id"], "- Rule %s | evidence: correction:2026-10-11 x" % e["id"]) for e in mine]
+        with ThreadPool(12) as pool:
+            results = pool.map(_apply_worker, jobs)
+        assert all(rc == 0 for rc, _, _ in results), results
+        text = (proj / ".harness/standards.md").read_text()
+        for e in mine:
+            assert text.count("- Rule %s " % e["id"]) == 1
+        done = [e for e in queue(proj) if e["status"] == "approved"]
+        assert all(("- Rule %s " % e["id"]) in text for e in done)
+        # free room: drop the applied rule lines for the next round
+        kept = [l for l in text.splitlines() if not l.startswith("- Rule ")]
+        (proj / ".harness/standards.md").write_text("\n".join(kept) + "\n")
+        for e in mine:
+            os.remove(proj / ".cairn/proposals" / (e["id"] + ".json"))
+        assert before == len(kept)
+
+
+def test_parallel_records_do_not_lose_count_updates(proj):
+    from multiprocessing.pool import ThreadPool
+
+    def go(i):
+        tp = write(proj / ("t%d.jsonl" % i), [user("No, use tabs")])
+        return run("record", "--root", proj, "--session", "p%d" % i, "--transcript", tp).returncode
+
+    with ThreadPool(10) as pool:
+        assert pool.map(go, range(10)) == [0] * 10
+    (e,) = queue(proj)
+    assert e["count"] == 10 and len(e["seen"]) == pr.SEEN_MAX
+
+
+def test_lock_file_fallback_without_fcntl(proj, monkeypatch):
+    monkeypatch.setattr(pr, "fcntl", None)
+    d = proj / ".cairn/proposals"
+    with pr.locked(d):
+        assert (d / ".lock.excl").exists()
+        with pytest.raises(TimeoutError):
+            with pr.locked(d, wait=0.1):
+                pass
+    assert not (d / ".lock.excl").exists()
