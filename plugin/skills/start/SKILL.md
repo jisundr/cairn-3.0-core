@@ -9,7 +9,7 @@ description: Entry point, loaded once per session. Resolves the .harness/ gate, 
 
 One `Glob .harness/**/*.md` call, once per task; hold the result — never re-glob mid-task.
 
-- **Present** — read what the current step needs, proceed.
+- **Present** — read what the current step needs, proceed. Skip rules whose `applies when` misses the task's `paths` or kind (`task-assets/assets/rule-format.md`).
 - **Partial** — proceed with what's there. A missing individual file skips silently.
 - **Absent** — don't proceed with cairn's workflow. Say cairn works from the project's own `.harness/`, and offer `/cairn-setup`, once. If declined, stand down for the session: no asking, no writes. Keep working on the request normally, without cairn.
 
