@@ -108,6 +108,26 @@ def qdir(root):
     return Path(root) / ".cairn" / "proposals"
 
 
+def ensure_dir(directory):
+    """Create .cairn/ and .cairn/proposals/ and keep both private to the user (0700)."""
+    directory.mkdir(parents=True, exist_ok=True)
+    for d in (directory.parent, directory):
+        with contextlib.suppress(OSError):
+            os.chmod(d, 0o700)
+
+
+def write_private(path, text):
+    """Replace `path` with text, mode 0600, via a unique tmp file."""
+    fd, tmp = tempfile.mkstemp(prefix=".tmp.", suffix=".part", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
 def load(path):
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -118,17 +138,10 @@ def load(path):
 
 def save(directory, entry):
     """Atomic write, keys in contract order; mtime is last_seen or resolved. Call under locked()."""
-    directory.mkdir(parents=True, exist_ok=True)
+    ensure_dir(directory)
     ordered = {k: entry.get(k) for k in FIELDS}
     target = directory / (entry["id"] + ".json")
-    fd, tmp = tempfile.mkstemp(prefix=".tmp.", suffix=".part", dir=str(directory))
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(json.dumps(ordered, ensure_ascii=False, separators=(",", ":")) + "\n")
-        os.replace(tmp, target)
-    finally:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
+    write_private(target, json.dumps(ordered, ensure_ascii=False, separators=(",", ":")) + "\n")
     when = parse_ts(entry.get("resolved") or entry.get("last_seen") or "")
     if when:
         os.utime(target, (when.timestamp(), when.timestamp()))
@@ -137,7 +150,7 @@ def save(directory, entry):
 @contextlib.contextmanager
 def locked(directory, wait=LOCK_WAIT):
     """Exclusive lock on the queue directory; TimeoutError after `wait` seconds."""
-    directory.mkdir(parents=True, exist_ok=True)
+    ensure_dir(directory)
     deadline = time.monotonic() + wait
     if fcntl is not None:
         fd = os.open(str(directory / ".lock"), os.O_CREAT | os.O_RDWR, 0o600)
@@ -357,7 +370,7 @@ def scan(transcript, offset):
 
 def record(root, session, transcript):
     directory = qdir(root)
-    directory.mkdir(parents=True, exist_ok=True)
+    ensure_dir(directory)
     sweep(directory)
     offset, recorded, fails = read_pos(directory, session)
     got = scan(transcript, offset)
@@ -368,7 +381,7 @@ def record(root, session, transcript):
     signals = list(extract(lines, stamp(now())))
     with locked(directory):
         recorded, fails = merge(directory, session, signals, recorded, fails)
-        (directory / (".pos-" + session)).write_text("%d %d %d\n" % (new_offset, recorded, fails))
+        write_private(directory / (".pos-" + session), "%d %d %d\n" % (new_offset, recorded, fails))
 
 
 def merge(directory, session, signals, recorded, fails):

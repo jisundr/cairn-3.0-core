@@ -705,3 +705,19 @@ def test_failure_never_evicts_a_correction_at_the_cap(proj):
     _fill(proj, "correction", pr.QUEUE_MAX)
     record(proj, fail_ok(1))
     assert {e["type"] for e in queue(proj)} == {"correction"} and len(queue(proj)) == pr.QUEUE_MAX
+
+
+def test_queue_dirs_are_0700_and_files_0600(proj):
+    cairn = proj / ".cairn"
+    (cairn / "proposals").mkdir(parents=True)
+    os.chmod(cairn, 0o755)
+    os.chmod(cairn / "proposals", 0o755)
+    record(proj, [user("No, use tabs")])
+    mode = lambda p: p.stat().st_mode & 0o777
+    assert mode(cairn) == 0o700 and mode(cairn / "proposals") == 0o700
+    files = [p for p in (cairn / "proposals").iterdir() if p.is_file()]
+    assert any(p.suffix == ".json" for p in files) and any(p.name.startswith(".pos-") for p in files)
+    assert {mode(p) for p in files} == {0o600}
+    (e,) = queue(proj)
+    run("mark", "--root", proj, e["id"], "dropped")
+    assert mode(cairn / "proposals" / (e["id"] + ".json")) == 0o600
