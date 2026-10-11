@@ -167,7 +167,7 @@ def test_failure_needs_a_different_success(proj):
         bash_pair("b", "make test", "ok", False)
     record(proj, pair, session="f2", name="b.jsonl")
     (e,) = queue(proj)
-    assert e["type"] == "failure" and e["signal"] == "make tset"
+    assert e["type"] == "failure" and e["signal"] == "make"
     assert e["context"] == "No rule to make target | worked: make test"
 
 
@@ -558,16 +558,50 @@ def test_failure_error_line_with_a_secret_is_dropped(proj):
         bash_pair("b", "psql staging", "ok", False)
     record(proj, pair)
     (e,) = queue(proj)
-    assert e["signal"] == "psql prod" and e["context"] == "worked: psql staging"
+    assert e["signal"] == "psql" and e["context"] == "worked: psql"
+
+
+FIRST_ARG_LEAKS = [
+    ("echo hunter2 | sudo -S apt install foo", "echo hunter2 | sudo -S apt-get install foo", "hunter2", "echo"),
+    ("echo letmein", "echo letmein now", "letmein", "echo"),
+    ("echo mypass", "echo mypass ok", "mypass", "echo"),
+    ("login hunter2", "login hunter2 ok", "hunter2", "login"),
+    ("python hunter2.py", "python3 hunter2.py", "hunter2", "python"),
+    ("hunter2 run", "hunter2 build", "hunter2", None),
+]
+
+
+@pytest.mark.parametrize("bad,good,secret,signal", FIRST_ARG_LEAKS)
+def test_first_argument_secret_is_stored_nowhere(proj, bad, good, secret, signal):
+    record(proj, fail_ok(1, bad, good))
+    assert secret.encode() not in stored_bytes(proj)
+    assert [e["signal"] for e in queue(proj)] == ([signal] if signal else [])
+
+
+@pytest.mark.parametrize("bad,good,signal,worked", [
+    ("pnpm test", "npm test", "pnpm test", "npm test"),
+    ("git worktree remove x", "git worktree prune", "git worktree", "git worktree"),
+    ("pip install x", "pip3 install x", "pip install", "pip3 install"),
+    ("python3 -m pytest", "python -m pytest", "python3 -m", "python -m"),
+])
+def test_known_subcommands_and_flags_still_record(proj, bad, good, signal, worked):
+    record(proj, fail_ok(1, bad, good))
+    (e,) = queue(proj)
+    assert e["signal"] == signal and e["context"].endswith("worked: " + worked)
 
 
 def test_failure_stores_command_name_and_first_argument_only(proj):
-    pair = bash_pair("a", "make deploy --env=prod --region eu-west-1", "Exit code 2\nno target", True) + \
+    pair = bash_pair("a", "make deploy --env prod --region eu-west-1", "Exit code 2\nno target", True) + \
         bash_pair("b", "make build --env=prod --region eu-west-1 --jobs 4", "ok", False)
     record(proj, pair)
     (e,) = queue(proj)
     assert e["signal"] == "make deploy"
     assert e["context"] == "no target | worked: make build"
+
+
+def test_failure_whose_command_has_a_rejected_token_is_dropped_whole(proj):
+    record(proj, fail_ok(1, "make deploy --env=prod", "make build"))
+    assert queue(proj) == []
 
 
 NEW_LINE = "- Use tabs | evidence: correction:2026-10-11 asked once"
@@ -775,7 +809,7 @@ def test_failure_needs_a_related_success(proj):
     record(proj, fail_ok(1, "make tset", "git status"), session="a", name="a.jsonl")
     assert queue(proj) == []
     record(proj, fail_ok(2, "python3 run.py src/app.py", "pytest src/app.py"), session="b", name="b.jsonl")
-    assert [e["signal"] for e in queue(proj)] == ["python3 run.py"]
+    assert [e["signal"] for e in queue(proj)] == ["python3"]
 
 
 def test_error_text_and_rtk_hint_are_not_signals(proj):
@@ -789,13 +823,13 @@ def test_error_text_and_rtk_hint_are_not_signals(proj):
 def test_at_most_two_failures_per_session_across_passes(proj):
     tp = proj / "t.jsonl"
     entries = []
-    for i in range(3):
-        entries += fail_ok(i, "make tset%d" % i, "make test%d" % i)
+    for i, sub in enumerate(["build", "lint", "deploy"]):
+        entries += fail_ok(i, "make " + sub, "make serve")
     write(tp, entries)
     run("record", "--root", proj, "--session", "s1", "--transcript", tp)
     assert [e["type"] for e in queue(proj)] == ["failure"] * 2
     with open(tp, "a") as fh:
-        for e in fail_ok(7, "make tsetx", "make testx"):
+        for e in fail_ok(7, "make clean", "make dev"):
             fh.write(json.dumps(e) + "\n")
     run("record", "--root", proj, "--session", "s1", "--transcript", tp)
     assert len(queue(proj)) == 2
@@ -898,10 +932,10 @@ def test_hook_is_silent_on_a_read_only_cairn_dir(proj):
 @pytest.mark.parametrize("bad,good,signal", [
     ("pnpm test", "npm test", "pnpm test"),
     ("pip install x", "pip3 install x", "pip install"),
-    ("python main.py", "python3.12 main.py", "python main.py"),
-    ("node build.js", "bun build.js", "node build.js"),
+    ("python main.py", "python3.12 main.py", "python"),
+    ("node build.js", "bun build.js", "node"),
     ("docker build .", "podman build .", "docker build"),
-    ("make all", "gmake all", "make all"),
+    ("make all", "gmake all", "make"),
     ("FOO=1 cd x && npm test", "yarn test", "npm test"),
     ("cd foo && make", "cd bar && make", "make"),
     ("sudo time make deploy", "make build", "make deploy"),
