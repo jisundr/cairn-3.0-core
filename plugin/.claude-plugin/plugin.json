@@ -1,7 +1,7 @@
 {
   "name": "cairn",
   "displayName": "Cairn",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "A lean, on-demand, non-invasive development workflow for Claude Code: rules with evidence, corrections queued as candidates, nothing applied without your approval.",
   "author": {
     "name": "Jayson De los Reyes",
