@@ -303,3 +303,41 @@ def test_root_agents_ignored_when_plugin_subfolder_exists(tmp_path):
     w(tmp_path, "agents/builder.md", agent_md(description="x" * 400))
     _, _, total, agents = budget.scan(tmp_path)
     assert agents == [] and total == 0
+
+
+def test_gate_excluded_set_is_pinned():
+    assert set(budget.GATE_EXCLUDED) == {"mission-control", "plugin/mission-control"}
+
+
+def test_at_import_in_excluded_mission_control_not_flagged(tmp_path):
+    plugin_layout(tmp_path)
+    w(tmp_path, "mission-control/x.md", "see @docs/foo.md\n")
+    w(tmp_path, "plugin/mission-control/x.md", "see @docs/foo.md\n")
+    findings, *_ = budget.gather_findings(tmp_path)
+    assert not any(f.rule == "no-at-imports" for f in findings)
+
+
+def test_at_import_in_nested_mission_control_still_flagged(tmp_path):
+    plugin_layout(tmp_path)
+    w(tmp_path, "plugin/skills/foo/mission-control/x.md", "see @docs/foo.md\n")
+    findings, *_ = budget.gather_findings(tmp_path)
+    assert any(f.rule == "no-at-imports" and f.path == "plugin/skills/foo/mission-control/x.md"
+               for f in findings)
+
+
+def test_report_lists_excluded_paths(tmp_path):
+    budget.write_report(tmp_path, [], 0)
+    text = (tmp_path / "docs" / "BUDGET.md").read_text()
+    assert "## Excluded from the gate" in text
+    assert "`mission-control`" in text and "`plugin/mission-control`" in text
+
+
+def test_main_prints_excluded_lines(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(budget, "repo_root", lambda: tmp_path)
+    monkeypatch.setattr(sys, "argv", ["budget.py"])
+    with pytest.raises(SystemExit) as ex:
+        budget.main()
+    assert ex.value.code == 0
+    out = capsys.readouterr().out
+    assert "excluded: mission-control - " in out
+    assert "excluded: plugin/mission-control - " in out

@@ -108,6 +108,18 @@ def headroom(measured, hard, unit="B"):
 
 IGNORED_DIR_PARTS = (".git", "__pycache__", ".pytest_cache", "node_modules")
 
+# Paths the gate does not walk. Both are the same mission-control sources.
+_MC_REASON = "decided 2026-10-11; leaves core in epic 05"
+GATE_EXCLUDED = {
+    "mission-control": _MC_REASON,
+    "plugin/mission-control": _MC_REASON,
+}
+
+
+def gate_excluded(rel):
+    """True when rel (posix, repo-relative) is an excluded path or sits under one."""
+    return any(rel == p or rel.startswith(p + "/") for p in GATE_EXCLUDED)
+
 
 def all_files(root):
     for p in sorted(root.rglob("*")):
@@ -116,6 +128,8 @@ def all_files(root):
         if any(part in IGNORED_DIR_PARTS for part in p.relative_to(root).parts):
             continue
         rel = p.relative_to(root).as_posix()
+        if gate_excluded(rel):
+            continue
         yield p, rel
 
 
@@ -245,6 +259,8 @@ def check_at_imports(root):
         if any(part in IGNORED_DIR_PARTS for part in path.relative_to(root).parts):
             continue
         rel = path.relative_to(root).as_posix()
+        if gate_excluded(rel):
+            continue
         for m in AT_IMPORT_RE.finditer(read_text(path)):
             findings.append(Finding("no-at-imports", rel, "error", f"@-import found: @{m.group(1)}"))
     return findings
@@ -414,6 +430,9 @@ def write_report(root, rows, always_loaded_total):
     ]
     if consuming:
         lines += ["## Templates for a consuming project", "", *table(consuming), ""]
+    lines += ["## Excluded from the gate", ""]
+    lines += [f"- `{path}` - {reason}" for path, reason in GATE_EXCLUDED.items()]
+    lines += [""]
     (docs_dir / "BUDGET.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -435,6 +454,8 @@ def main():
     if args.json:
         print(json.dumps([f.to_dict() for f in findings], indent=2))
     else:
+        for path, reason in GATE_EXCLUDED.items():
+            print(f"excluded: {path} - {reason}")
         if not findings:
             print("budget.py: clean")
         for f in findings:
