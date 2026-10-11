@@ -116,6 +116,33 @@ def test_cmd_makefile_target(tmp_path):
     assert [s for _, s in states(root)] == ["verified", "stale"]
 
 
+def test_cmd_makefile_multi_target_line(tmp_path):
+    root = harness(tmp_path, workflow="## A\n- a | evidence: cmd:Makefile#lint\n- b | evidence: cmd:Makefile#test\n- c | evidence: cmd:Makefile#deps\n- d | evidence: cmd:Makefile#X\n")
+    (tmp_path / "Makefile").write_text("X := 1\n.PHONY: deps\nlint test: deps\n\tpytest\n")
+    assert [s for _, s in states(root)] == ["verified", "verified", "stale", "stale"]
+
+
+def test_cmd_package_json_with_bom(tmp_path):
+    root = harness(tmp_path, workflow="## A\n- one | evidence: cmd:package.json#build\n")
+    (tmp_path / "package.json").write_bytes(b"\xef\xbb\xbf" + json.dumps({"scripts": {"build": "x"}}).encode())
+    assert states(root) == [("one", "verified")]
+
+
+def test_bad_root_exits_2(tmp_path):
+    out = subprocess.run([sys.executable, str(CHECKER), "--root", str(tmp_path / "nope")], capture_output=True, text=True)
+    assert out.returncode == 2 and out.stdout == ""
+    assert len(out.stderr.strip().splitlines()) == 1
+    f = tmp_path / "file"
+    f.write_text("")
+    out = subprocess.run([sys.executable, str(CHECKER), "--root", str(f)], capture_output=True, text=True)
+    assert out.returncode == 2
+
+
+def test_bad_usage_exits_2(tmp_path):
+    out = subprocess.run([sys.executable, str(CHECKER), "--root", str(tmp_path), "--select", "a", "--kind", "bogus"], capture_output=True, text=True)
+    assert out.returncode == 2
+
+
 def test_unsupported_manifest_and_untyped_are_unverifiable(tmp_path):
     root = harness(tmp_path, workflow="## A\n- a | evidence: cmd:Cargo.toml#build\n- b | evidence: seen in review\n")
     assert [s for _, s in states(root)] == ["unverifiable", "unverifiable"]

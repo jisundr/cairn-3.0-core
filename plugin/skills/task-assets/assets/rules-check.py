@@ -5,7 +5,7 @@
 
 Default: scan the four harness files under DIR/.harness/ and print a summary
 plus one line per rule that is not verified. Always exits 0 (read-only, never
-blocks); an internal error exits 2. --select prints the rules that load for a
+blocks); an internal error, bad usage or a missing root exits 2. --select prints the rules that load for a
 task touching PATH... of kind K (default build).
 """
 import argparse
@@ -117,7 +117,7 @@ def _check_evidence(evidence, root):
             if not f.is_file():
                 return "stale", "package.json missing"
             try:
-                scripts = json.loads(f.read_text(encoding="utf-8")).get("scripts", {})
+                scripts = json.loads(f.read_text(encoding="utf-8-sig")).get("scripts", {})
             except (ValueError, AttributeError):
                 return "stale", "package.json unreadable"
             if isinstance(scripts, dict) and name in scripts:
@@ -127,9 +127,11 @@ def _check_evidence(evidence, root):
             f = root / manifest
             if not f.is_file():
                 return "stale", manifest + " missing"
-            pattern = re.compile(r"^" + re.escape(name) + r"\s*:(?!=)", re.M)
-            if pattern.search(f.read_text(encoding="utf-8", errors="replace")):
-                return "verified", ""
+            rule_line = re.compile(r"^([^\s#:=][^:=]*?):(?!:?=)")
+            for ln in f.read_text(encoding="utf-8", errors="replace").splitlines():
+                m = rule_line.match(ln)
+                if m and name in m.group(1).split():
+                    return "verified", ""
             return "stale", "no target " + name
         return "unverifiable", "unsupported manifest " + manifest
     if evidence.startswith("correction:"):
@@ -309,6 +311,9 @@ def main(argv=None):
     ap.add_argument("--select", nargs="*", metavar="PATH")
     ap.add_argument("--kind", default="build", choices=KINDS)
     args = ap.parse_args(argv)
+    if not Path(args.root).is_dir():
+        print("rules-check: root is not a directory: %s" % args.root, file=sys.stderr)
+        return 2
     results = scan(args.root)
     if args.select is not None:
         select = relativize(args.select, args.root)
