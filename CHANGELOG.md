@@ -1,5 +1,28 @@
 # Changelog
 
+## 3.1.0 - 2026-10-12
+
+cairn 3.1 adds architecture decision records. When a session settles an architectural choice, `/cairn-retro` offers it as an ADR candidate, and on your approval `scribe` writes it to `docs/decisions/` in a short fixed structure, so the reason behind a boundary or constraint outlives the task that produced it. Nothing is written without your approval, and an existing `.harness/` upgrades untouched.
+
+### Upgrading from 3.0
+
+Update the plugin; there are no steps and no files to change. Your `.harness/` is untouched, and `docs/decisions/` is created only when you approve your first ADR.
+
+### What changed
+
+- New skill `cairn:adr` defines the ADR structure: Status (proposed, accepted or superseded by NNNN), Context, Decision, Consequences and Alternatives considered. ADRs are numbered in sequence as `docs/decisions/NNNN-title.md`, and superseding one edits only the old file's Status line.
+- `scribe` writes ADRs through `cairn:adr`. It still writes only under `docs/` and still creates nothing you did not ask for; the first ADR in a repo creates `docs/decisions/` only after you approve it.
+- `/cairn-retro` offers an architectural decision from the session as an ADR candidate in the same approve, edit or drop step as rule edits. When `docs/decisions/` does not exist yet, it says approval creates it. Retro itself writes nothing for an ADR.
+- The branching rule in cairn's own `.harness/workflow.md` now says feature branch and pull request, matching `CONTRIBUTING.md`.
+
+### Checks on the release commit
+
+Measured on macOS (Darwin), after the last edit before the release commit. CI's own runs on Ubuntu are not quoted here; every number below is macOS-local.
+
+- `python3 tools/budget.py` exits 0 with 11 soft-cap warnings (9 on 3.0.0, plus `cairn-retro.md` at 1937 B against its 1500 B soft cap and the always-loaded total at 2538 B against its 2500 B soft cap) and no errors; both new warnings are under the hard caps (2048 B and 3000 B).
+- `python3 -m pytest tools/`: 491 passed.
+- Hook selftests: all five scripts pass. `claude plugin validate . --strict` passes.
+
 ## 3.0.0 - 2026-10-11
 
 cairn 3.0 keeps the workflow of 2.0 and adds a learning loop: rules carry the evidence they came from and the condition they apply under, corrections you make are queued as rule candidates, and nothing is written to your `.harness/` without your approval. A 2.0 repo upgrades with its `.harness/` untouched: cairn never rewrites your `.harness/` without your approval, and an approved edit adds or replaces one line.
