@@ -11,13 +11,13 @@ One `Glob .harness/**/*.md` call, once per task; hold the result — never re-gl
 
 - **Present** — read what the current step needs, proceed.
 - **Partial** — proceed with what's there. A missing individual file skips silently.
-- **Absent** — don't proceed with cairn's workflow. Say cairn works from the project's own `.harness/`, and offer `/cairn-setup`, once. If declined, stand down for the session: no more asking, no writes. Keep working on the request normally, without cairn.
+- **Absent** — don't proceed with cairn's workflow. Say cairn works from the project's own `.harness/`, and offer `/cairn-setup`, once. If declined, stand down for the session: no asking, no writes. Keep working on the request normally, without cairn.
 
 ## Local preferences
 
-Also covered by the glob: `.harness/local/preferences.md`, classified per `/cairn-doctor` (active / ignored-by-ceiling / unrecognised). Dispatch prompts carry only active values — never the file or its path; no agent reads it. Active `prefer-path` feeds the path choice. Active `model` lines bound the `model` param of each cairn agent's `Agent()` call, not prompt text (a no-op for `subagent_type: "fork"`). Pick from the role's list: its most capable model for escalated or code-writing work, its lightest for small or read-only work; with no strong signal or mixed signals, `model default` if in that list, else the first entry. A role with no line takes `model default`; neither → dispatch unchanged.
+Also covered by the glob: `.harness/local/preferences.md`, classified per `/cairn-doctor` (active / ignored-by-ceiling / unrecognised). Dispatch prompts carry only active values — never the file or its path; no agent reads it. Active `prefer-path` feeds the path choice. Active `model` lines bound the `model` param of each cairn agent's `Agent()` call, not prompt text (a no-op for `subagent_type: "fork"`). Pick from the role's list: its most capable for escalated or code-writing work, its lightest for small or read-only work; with no or mixed signals, `model default` if in that list, else the first entry. A role with no line takes `model default`; neither → dispatch unchanged.
 
-Absent, or old form (per `/cairn-doctor`) — before the first agent dispatch, offer `/cairn-setup --local`'s model step, once. Declined → stand down for the session, as in the Harness gate; nothing persists, so a later session re-evaluates.
+Absent, or old form (per `/cairn-doctor`) — before the first agent dispatch, offer `/cairn-setup --local`'s model step, once. Declined → stand down for the session, as above; a later session re-evaluates.
 
 ## Scope resolution
 
@@ -32,7 +32,7 @@ Otherwise, resolve scope — invoke `Skill(skill: "cairn:scope")` — when any o
 5. User invalidates scope ("actually, let's…", "scrap that").
 6. Cold resume, no record to restore.
 
-Otherwise, continue — most messages: a refinement inside scope, an answer to your question, an instruction you can already act on, or conversation. A request that only slightly extends scope: amend the record directly.
+Otherwise, continue — most messages: a refinement inside scope, an answer to your question, an instruction you can act on, or conversation. A request that only slightly extends scope: amend the record directly.
 
 **Scope record**, under 400 B:
 
@@ -64,7 +64,7 @@ Before each escalated dispatch, bind the task pointer per `reference/dispatch-po
 
 ## Delegating investigation
 
-Resolving an open question or scope ambiguity in the main thread costs whatever it reads there. One file settles it — read it. More than one — delegate: `Explore`, or `general-purpose` where `Explore` isn't offered.
+Reading in the main thread costs context. One file settles a question — read it. More than one — delegate: `Explore`, or `general-purpose` where `Explore` isn't offered.
 
 ## Attendance
 
