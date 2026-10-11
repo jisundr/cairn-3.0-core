@@ -168,7 +168,7 @@ def test_failure_needs_a_different_success(proj):
     record(proj, pair, session="f2", name="b.jsonl")
     (e,) = queue(proj)
     assert e["type"] == "failure" and e["signal"] == "make"
-    assert e["context"] == "No rule to make target | worked: make test"
+    assert e["context"] == "exit 2 | worked: make test"
 
 
 def test_refused_tool_calls_are_not_failures(proj):
@@ -509,7 +509,8 @@ def test_error_line_leaks_leave_context_empty_but_signal_records(proj, err, secr
     pair = bash_pair("a", "make deploy", "Exit code 2\n" + err, True) + bash_pair("b", "make build", "ok", False)
     record(proj, pair)
     (e,) = queue(proj)
-    assert e["signal"] == "make deploy" and e["context"] == "worked: make build"
+    assert e["signal"] == "make deploy" and e["context"] in (
+        "exit 2 | worked: make build", "exit 2 | failed | worked: make build")
     assert secret.encode() not in stored_bytes(proj)
 
 
@@ -553,12 +554,38 @@ def test_failure_with_a_secret_in_its_command_is_dropped(proj, cmd):
     assert queue(proj) == []
 
 
+# (error line, fragments that must not be stored, class tag or None)
+ERR_PROSE = [
+    ("Login failed for user hunter2", ["hunter2", "Login", "user"], "failed"),
+    ("bash: hunter2: command not found", ["hunter2", "bash"], "command not found"),
+    ("error: pin 482913 rejected", ["482913", "pin"], None),
+    ("otp 482913 expired", ["482913", "otp"], None),
+    ("could not connect to db01.corp.internal as bob", ["db01", "corp", "bob"], None),
+    ("ENOENT: no such file or directory, open '/Users/alice/proj/.env.production'",
+     ["alice", ".env", "ENOENT"], "no such file"),
+    ("user jdoe not found in realm acme", ["jdoe", "acme", "realm"], "not found"),
+    ("customer Jane Doe has no record", ["Jane", "Doe", "customer"], None),
+    ("permission denied (publickey) for bob@db01", ["bob", "db01", "publickey"], "permission denied"),
+]
+
+
+@pytest.mark.parametrize("err,frags,tag", ERR_PROSE)
+def test_error_text_is_stored_only_as_a_fixed_class(proj, err, frags, tag):
+    pair = bash_pair("a", "make deploy", "Exit code 3\n" + err, True) + bash_pair("b", "make build", "ok", False)
+    record(proj, pair)
+    (e,) = queue(proj)
+    expected = ["exit 3"] + ([tag] if tag else []) + ["worked: make build"]
+    assert e["context"] == " | ".join(expected)
+    for frag in frags:
+        assert frag.encode() not in stored_bytes(proj)
+
+
 def test_failure_error_line_with_a_secret_is_dropped(proj):
     pair = bash_pair("a", "psql prod", "Exit code 2\nFATAL: could not reach postgres://u:pw@h/db", True) + \
         bash_pair("b", "psql staging", "ok", False)
     record(proj, pair)
     (e,) = queue(proj)
-    assert e["signal"] == "psql" and e["context"] == "worked: psql"
+    assert e["signal"] == "psql" and e["context"] == "exit 2 | worked: psql"
 
 
 FIRST_ARG_LEAKS = [
@@ -596,7 +623,7 @@ def test_failure_stores_command_name_and_first_argument_only(proj):
     record(proj, pair)
     (e,) = queue(proj)
     assert e["signal"] == "make deploy"
-    assert e["context"] == "no target | worked: make build"
+    assert e["context"] == "exit 2 | worked: make build"
 
 
 def test_failure_whose_command_has_a_rejected_token_is_dropped_whole(proj):
