@@ -6,7 +6,7 @@
 - Node 22/npm — CI + frontend-build only, never a consuming-project runtime dependency
 
 ## Layering
-- Plugin under `plugin/` (`agents/`, `skills/`, `commands/`, `hooks/`, `mission-control/`, `.claude-plugin/plugin.json`) — the only folder an install copies; `mission-control/` (the submodule, dev-only), `tools/`, `docs/`, `.harness/` at repo root; `plugin/mission-control/` is its generated runtime copy, not a submodule
+- Plugin under `plugin/` (`agents/`, `skills/`, `commands/`, `hooks/`, `mission-control/`, `.claude-plugin/plugin.json`) — the only folder an install copies; `mission-control/` (plain directory, no submodule; dev-only, excluded from the gate), `tools/`, `docs/`, `.harness/` at repo root; `plugin/mission-control/` is its generated runtime copy
 - Subsystem files group under their own `tools/<name>/` dir rather than flattening into `tools/` root
 
 ## Boundaries
