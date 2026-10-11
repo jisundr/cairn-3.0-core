@@ -103,10 +103,15 @@ def test_secret_text_is_skipped(proj):
     assert queue(proj) == []
 
 
-def test_signal_is_collapsed_and_truncated(proj):
-    record(proj, [user("No,   use\ttabs\n" + "word " * 100)])
-    sig = queue(proj)[0]["signal"]
-    assert len(sig) == pr.SIGNAL_MAX and "\n" not in sig and "  " not in sig
+def test_signal_is_collapsed_and_long_text_is_dropped_whole(proj):
+    record(proj, [user("No,   use\ttabs\n   here")])
+    assert [e["signal"] for e in queue(proj)] == ["No, use tabs here"]
+    record(proj, [user("No, use tabs\n" + "word " * 100)], session="s2", name="u.jsonl")
+    assert len(queue(proj)) == 1
+    at_cap = ("No, " + "ab " * 98)[:300].rstrip()
+    assert 290 < len(at_cap) <= pr.SIGNAL_MAX
+    record(proj, [user(at_cap)], session="s3", name="v.jsonl")
+    assert len(queue(proj)) == 2 and all(len(e["signal"]) <= pr.SIGNAL_MAX for e in queue(proj))
 
 
 def test_cap_of_five_per_session_and_rerun_idempotent(proj):
@@ -426,6 +431,108 @@ def test_secret_corpus_benign_text_is_kept(proj, text):
     assert len(queue(proj)) == 1
 
 
+ALLOW_BENIGN = [
+    "No, use pnpm test not npm test",
+    "No, the keyboard layout is wrong",
+    "No, use camelCase for IDs",
+    "No, put it in src/app/page.tsx",
+    "No, run mkdir -p before",
+    "No, use --filter @scope/pkg",
+    "Don't use npm, use pnpm",
+    "No, the docs live in docs/schemas/state-v1.md",
+]
+# (text, the fragment that must not reach a stored field)
+TEXT_LEAKS = [
+    ("No, send Cookie: sid=abc123xyz with it", "abc123xyz"),
+    ("No, Set-Cookie: sid=abc123xyz is wrong", "abc123xyz"),
+    ("No, run export FOO=hunter2x first", "hunter2x"),
+    ("No, FOO=bar123 make test is wrong", "bar123"),
+    ("No, pass: letmein", "letmein"),
+    ("No, pass=letmein99", "letmein99"),
+    ("No, pw: Tr0ub4dor", "Tr0ub4dor"),
+    ("No, the passphrase is purple monkey", "purple"),
+    ("No, run gpg --passphrase abc", "passphrase"),
+    ("No, run sshpass -p mypw ssh host", "mypw"),
+    ("No, run docker login -u bob -p s3cr3tpw", "s3cr3tpw"),
+    ("No, run mysql -h db -u root -p Sup3rpw", "Sup3rpw"),
+    ("No, run openssl enc -k mypass", "mypass"),
+    ("No, run curl --user bob:pw1", "pw1"),
+    ("No, use glpat-abcdefghij1234567890", "abcdefghij1234567890"),
+    ("No, use SG.abcdefghijklmnop.qrstuvwxyz", "qrstuvwxyz"),
+    ("No, use sk-abcdefghij\nklmnopqrstuvwx", "klmnopqrstuvwx"),
+    ("No, deploy staging --creds hunter2hunter2", "hunter2hunter2"),
+    ("No, the card is 4111111111111111", "4111111111111111"),
+    ("No, the card is 4111 1111 1111 1111", "4111 1111"),
+    ("No, FOO=hunter2x make test", "hunter2x"),
+    ("No, login bob:pw1abc", "pw1abc"),
+    ("No, the user is bob@mail.example.com", "mail.example"),
+    ("No, the value is Zx9Qw7Er5Ty3Ui1Op", "Zx9Qw7Er5Ty3Ui1Op"),
+]
+CMD_LEAKS = [
+    ("FOO=hunter2x make test", "hunter2x"),
+    ("cd app && DB=pw123abc make test", "pw123abc"),
+    ("deploy staging --creds hunter2hunter2", "hunter2hunter2"),
+    ("sudo time login bob:pw1abc", "pw1abc"),
+    ("curl --user bob:pw1 https://x.test", "pw1"),
+    ("export FOO=bar123", "bar123"),
+    ("openssl enc -k mypass", "mypass"),
+]
+ERR_LEAKS = [
+    ("Set-Cookie: sid=abc123xyz", "abc123xyz"),
+    ("pass: letmein", "letmein"),
+    ("login failed for bob:pw1abc", "pw1abc"),
+    ("bad value 'Zx9Qw7Er5Ty3Ui1Op'", "Zx9Qw7Er5Ty3Ui1Op"),
+]
+
+
+def stored_bytes(proj):
+    d = proj / ".cairn/proposals"
+    return b"".join(p.read_bytes() for p in d.iterdir() if p.is_file())
+
+
+@pytest.mark.parametrize("text,secret", TEXT_LEAKS)
+def test_allow_list_drops_new_text_leaks_whole(proj, text, secret):
+    assert not pr.text_ok(text)
+    record(proj, [user(text)])
+    assert queue(proj) == [] and secret.encode() not in stored_bytes(proj)
+
+
+@pytest.mark.parametrize("cmd,secret", CMD_LEAKS)
+def test_failure_commands_never_store_the_secret(proj, cmd, secret):
+    pair = bash_pair("c", cmd, "Exit code 2\nboom", True) + bash_pair("d", cmd + " ok", "ok", False)
+    record(proj, pair)
+    assert secret.encode() not in stored_bytes(proj)
+
+
+@pytest.mark.parametrize("err,secret", ERR_LEAKS)
+def test_error_line_leaks_leave_context_empty_but_signal_records(proj, err, secret):
+    pair = bash_pair("a", "make deploy", "Exit code 2\n" + err, True) + bash_pair("b", "make build", "ok", False)
+    record(proj, pair)
+    (e,) = queue(proj)
+    assert e["signal"] == "make deploy" and e["context"] == "worked: make build"
+    assert secret.encode() not in stored_bytes(proj)
+
+
+@pytest.mark.parametrize("text", ALLOW_BENIGN)
+def test_allow_list_keeps_ordinary_corrections(proj, text):
+    assert pr.text_ok(text)
+    record(proj, [user(text)])
+    assert [e["signal"] for e in queue(proj)] == [text]
+
+
+@pytest.mark.parametrize("tok", ["pnpm", "package.json", "src/app/page.tsx", "v1.2.3", "snake_case",
+                                 "camelCase", "docker-compose.yml", "@scope/pkg", "--dry-run", "-x", "42", "don't"])
+def test_allow_list_tokens_that_pass(tok):
+    assert pr.token_ok(tok)
+
+
+@pytest.mark.parametrize("tok", ["a=b", "https://x.test", "user@host.io", "pass:letmein", "$HOME", "--k=v",
+                                 "1234567", "aB3dE6gH9jK2mN5pQ8", "abcdefghijklmnopqrstuvwxyz", "x/" + "a1" * 30,
+                                 "Zx9Qw7Er5Ty3", "a1b2c3d4e5f6", 'say"hi', "@a.b/c.d/e"])
+def test_allow_list_tokens_that_fail(tok):
+    assert not pr.token_ok(tok)
+
+
 def test_corpus_size():
     assert len(LEAKS) >= 30 and len(BENIGN) >= 10
 
@@ -450,7 +557,8 @@ def test_failure_error_line_with_a_secret_is_dropped(proj):
     pair = bash_pair("a", "psql prod", "Exit code 2\nFATAL: could not reach postgres://u:pw@h/db", True) + \
         bash_pair("b", "psql staging", "ok", False)
     record(proj, pair)
-    assert queue(proj) == []
+    (e,) = queue(proj)
+    assert e["signal"] == "psql prod" and e["context"] == "worked: psql staging"
 
 
 def test_failure_stores_command_name_and_first_argument_only(proj):
