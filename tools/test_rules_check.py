@@ -242,7 +242,7 @@ def test_literal_bracket_path_evidence_verifies(tmp_path):
         "## A\n"
         "- literal | evidence: path:app/[id]/page.tsx\n"
         "- escaped | evidence: path:app/[[]id]/page.tsx\n"
-        "- class | evidence: path:app/[a-z][a-z]/page.tsx\n"
+        "- class | evidence: path:app/[[]id]/page.[a-z]sx\n"
         "- missing | evidence: path:app/[nope]/page.tsx\n"
         "- parent | evidence: path:app/[id]/../x\n"
     )
