@@ -104,7 +104,7 @@ def _check_evidence(evidence, root):
         if not value or " " in value or value.startswith("/") or ".." in value.split("/"):
             return "malformed", "bad path evidence"
         if _has_glob(value):
-            ok = any(True for _ in root.glob(value))
+            ok = any(True for _ in root.glob(value.replace("[^", "[!")))
         else:
             ok = (root / value).exists()
         return ("verified", "") if ok else ("stale", "no match for " + value)
@@ -156,6 +156,30 @@ def check_rule(rule, root):
     return _check_evidence(rule["evidence"], root)
 
 
+def _char_class(glob, i):
+    """Return (regex, next index) for a [...] class at glob[i]; literal if unterminated."""
+    n = len(glob)
+    j = i + 1
+    if j < n and glob[j] in "!^":
+        j += 1
+    if j < n and glob[j] == "]":
+        j += 1
+    while j < n and glob[j] != "]":
+        j += 1
+    if j >= n:
+        return r"\[", i + 1
+    body = glob[i + 1:j]
+    neg = body[0] in "!^"
+    body = body[1:] if neg else body
+    inner = "".join(c if c == "-" else re.escape(c) for c in body)
+    rx = "[" + ("^/" if neg else "") + inner + "]"
+    try:
+        re.compile(rx)
+    except re.error:
+        return r"\[", i + 1
+    return rx, j + 1
+
+
 def _glob_regex(glob):
     glob = glob.strip()
     if glob.endswith("/") or not _has_glob(glob):
@@ -175,6 +199,9 @@ def _glob_regex(glob):
         elif glob[i] == "?":
             out += "[^/]"
             i += 1
+        elif glob[i] == "[":
+            rx, i = _char_class(glob, i)
+            out += rx
         else:
             out += re.escape(glob[i])
             i += 1

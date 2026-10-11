@@ -183,6 +183,31 @@ def test_select_relativizes_absolute_paths(tmp_path):
     assert "loads 1 of 2" in dotted.stdout and "docs" in dotted.stdout
 
 
+def test_character_classes_in_triggers():
+    def hit(glob, path):
+        return rc.matches({"trigger": "paths:" + glob}, [path])
+    assert hit("src/[ab].py", "src/a.py") and not hit("src/[ab].py", "src/c.py")
+    assert hit("src/[a-c]*.py", "src/bx.py") and not hit("src/[a-c]*.py", "src/dx.py")
+    assert hit("src/[!ab].py", "src/c.py") and not hit("src/[!ab].py", "src/a.py")
+    assert hit("src/[^ab].py", "src/c.py") and not hit("src/[^ab].py", "src/b.py")
+    assert hit("src/[.py", "src/[.py") and not hit("src/[.py", "src/a.py")
+    assert not hit("a[!x]b", "a/b")
+
+
+def test_character_class_evidence_matches_trigger_semantics(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src/c.py").write_text("")
+    body = (
+        "## A\n"
+        "- neg bang | evidence: path:src/[!ab].py\n"
+        "- neg caret | evidence: path:src/[^ab].py\n"
+        "- range | evidence: path:src/[a-c].py\n"
+        "- miss | evidence: path:src/[ab].py\n"
+    )
+    root = harness(tmp_path, standards=body)
+    assert [s for _, s in states(root)] == ["verified", "verified", "verified", "stale"]
+
+
 def test_kind_trigger_and_malformed_fails_open():
     rule = {"trigger": "kind:review, research"}
     assert rc.matches(rule, [], "review")
