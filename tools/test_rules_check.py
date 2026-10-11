@@ -285,6 +285,50 @@ def test_pathological_globs_return_quickly():
     assert rc.matches({"trigger": "paths:src/**/x/**/y.py"}, ["src/a/x/b/c/y.py"])
 
 
+def test_pathological_globs_stay_fast_on_long_paths():
+    import time
+    path = "a" * 4000
+    cases = ["*a" * 20 + "*b", "*a" * 41, "a**" * 30 + "b", "[a]*" * 49 + "b", "*a*b"]
+    for glob in cases:
+        start = time.monotonic()
+        rc._glob_match(glob, path)
+        assert time.monotonic() - start < 2, glob
+    assert rc._glob_match("*a" * 41, path)
+    assert not rc._glob_match("*a*b", path)
+
+
+GLOB_TABLE = [
+    ("a/**/b", "a/b", True),
+    ("a/**/b", "a/x/y/b", True),
+    ("a/**/b", "a/xb", False),
+    ("*", "a/b", False),
+    ("*", "ab", True),
+    ("**", "a/b", True),
+    ("?", "/", False),
+    ("?", "a", True),
+    ("a?b", "a/b", False),
+    ("*.py", "x/y.py", False),
+    ("**/*.py", "x/y.py", True),
+    ("**/*.py", "y.py", True),
+    ("src/**", "src/a/b.py", True),
+    ("src/*/b.py", "src/a/x/b.py", False),
+    ("[a-c]x", "bx", True),
+    ("[!x]y", "xy", False),
+    ("[^x]y", "ay", True),
+    ("[!x]y", "/y", False),
+    ("[]a]b", "]b", True),
+    ("[ab", "[ab", True),
+    ("a***b", "a/b", True),
+    ("a*?b", "a/b", False),
+    ("a*/b", "a/b", True),
+]
+
+
+def test_glob_match_semantics_table():
+    for glob, path, expected in GLOB_TABLE:
+        assert rc._glob_match(glob, path) is expected, (glob, path)
+
+
 def test_overlong_glob_is_malformed_and_fails_open():
     long_glob = "src/" + "a" * 200 + "/*.py"
     assert rc.trigger_error("paths:" + long_glob)
