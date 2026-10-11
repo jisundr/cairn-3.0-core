@@ -10,7 +10,7 @@ parser to mission-control/tasks.py and the caps to tools/budget.py.
 
 PATH is a STATE.md file or a directory searched for STATE.md files; folders
 named _template are skipped unless named directly. Exit 0 when no errors,
-1 otherwise.
+1 otherwise, 2 when there is nothing to check.
 """
 import re
 import sys
@@ -24,6 +24,8 @@ BLOCK_HARD = 1024
 REQUIRED = ("goal", "key_info")
 LIST_FIELDS = ("paths", "out_of_scope", "depends_on", "flags")
 SCALAR_FIELDS = ("schema", "goal", "done_when", "source", "path", "key_info")
+# 2.0 files wrote these two as a plain scalar; schema 1 still reads them.
+DEPRECATED_SCALAR_LISTS = ("depends_on", "flags")
 KNOWN = set(LIST_FIELDS) | set(SCALAR_FIELDS)
 
 _KEY_LINE_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*):(.*)$")
@@ -117,12 +119,30 @@ def parse(text):
 
 
 def _block_bytes(text):
-    """Bytes of the frontmatter block including both delimiters, measured
-    the way tools/budget.py measures it; None if the block is unclosed."""
-    m = re.match(r"^---\n(.*?)\n---\n?(.*)$", text, re.DOTALL)
-    if not m:
+    """Bytes of the frontmatter block including both delimiters, measured the
+    way tools/budget.py measures it for LF files; None if the block is
+    unclosed. Uses _bounds, so any file validate() reads as having a block is
+    measured too (CRLF and padded delimiters included)."""
+    lines = text.splitlines(keepends=True)
+    bounds = _bounds(lines)
+    if bounds is None:
         return None
-    return len(text.encode()) - len(m.group(2).encode())
+    return sum(len(line.encode()) for line in lines[: bounds[1] + 1])
+
+
+# Scalar forms 2.0 files used for list fields. Accepted with a warning.
+_NONE_SCALARS = {"none", "\u2014", "\u2013", "-", "n/a"}
+
+
+def _scalar_list_warning(field, value):
+    """Warning text for a list field written as a scalar, naming the rewrite."""
+    v = value.strip()
+    if v.lower() in _NONE_SCALARS:
+        return f"scalar {v!r} for no entries is deprecated; write `{field}: []` or drop the key"
+    if field == "depends_on":
+        items = [i.strip() for i in v.split(",") if i.strip()]
+        return f"scalar is deprecated; write `{field}: [{', '.join(items)}]`"
+    return f"scalar is deprecated; wrap the text as a one-item list, `{field}: [<text>]`"
 
 
 def _empty(value):
@@ -156,7 +176,11 @@ def validate(text, name=""):
 
     for field in LIST_FIELDS:
         if field in fm and isinstance(fm[field], str):
-            add("error", field, "must be a list ([a, b] or - items), got a scalar")
+            if field in DEPRECATED_SCALAR_LISTS:
+                if fm[field].strip():
+                    add("warning", field, _scalar_list_warning(field, fm[field]))
+            else:
+                add("error", field, "must be a list ([a, b] or - items), got a scalar")
     for field in ("goal", "key_info", "done_when", "source", "path"):
         if field in fm and isinstance(fm[field], list) and fm[field]:
             add("error", field, "must be a scalar, got a list")
