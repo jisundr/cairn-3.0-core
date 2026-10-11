@@ -11,6 +11,7 @@ Index of this repo's own documentation — for developing cairn, not for a consu
 | [`DESIGN.md`](DESIGN.md) | The mission-control dashboard's design system (React/Tailwind app at `plugin/mission-control/frontend/src`) — carries the landing page's Lockfile world (`marketing/DESIGN-landing.md`) into the live dashboard. Stays flat in `docs/` (not a subfolder): impeccable's own discovery (`context.mjs`) only finds `PRODUCT.md`/`DESIGN.md` directly in `docs/`, not nested. |
 | [`marketing/`](marketing/) | The public GitHub Pages landing page: `DESIGN-landing.md` (design system), `index.html` (source), `assets/` (images). Deployed by `.github/workflows/pages.yml` on push, not the classic branch-source method. |
 | [`portfolio/`](portfolio/) | External-evaluation material: `PORTFOLIO.md` (case study) and `INTERVIEW-STORIES.md` (STAR narratives). |
+| [`schemas/`](schemas/) | Published contracts other tools read. `state-v1.md` is the STATE.md frontmatter schema; `tools/state_schema.py` validates against it. |
 
 ## `specs/`
 

@@ -1,4 +1,5 @@
 ---
+schema: 1
 goal:
 paths: []
 done_when:
@@ -8,4 +9,4 @@ path: escalated
 key_info:
 flags: []
 ---
-> The frontmatter above is the state read on resume: under 1,024 B, each field under 200 characters. Below this line is the log — one dated line per event, appended, never edited, not read on resume.
+> The frontmatter above is the state read on resume: under 1,024 B, each field under 200 characters. Below this line is the log — one dated line per event, appended, never edited, not read on resume. Fields: docs/schemas/state-v1.md in jisundr/cairn-3.0-core.
