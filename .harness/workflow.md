@@ -11,3 +11,9 @@
 - `python tools/budget.py` clean after every file; `python tools/sync_mission_control.py --check` clean at phase end
 - Phase-end: `budget.py` + `pytest tools/` + `for s in plugin/hooks/*.sh; do "$s" --selftest; done` + `budget.py --report`
 - No mandate language (MUST/ALWAYS/NEVER/MANDATORY/NON-NEGOTIABLE) in shipped artifacts
+
+## Release
+Cutting a release: follow the Procedure file, and get an explicit yes before pushing a tag or creating a release.
+- Branch: main
+- Host CLI: gh
+- Procedure: .harness/reference/release.md
