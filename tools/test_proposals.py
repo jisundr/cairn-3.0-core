@@ -769,3 +769,19 @@ def test_transcript_timestamps_are_clamped(proj):
     for e in queue(proj):
         t = datetime.strptime(e["last_seen"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
         assert now_ - timedelta(days=366) <= t <= now_ + timedelta(days=1, minutes=1)
+
+
+@pytest.mark.skipif(shutil.which("jq") is None or os.geteuid() == 0, reason="needs jq and a non-root user")
+def test_hook_is_silent_on_a_read_only_cairn_dir(proj):
+    (proj / "CLAUDE.md").write_text("<!-- cairn:start -->\n")
+    d = proj / ".cairn/proposals"
+    d.mkdir(parents=True)
+    os.chmod(proj / ".cairn", 0o500)
+    os.chmod(d, 0o500)
+    try:
+        r = subprocess.run([str(HOOK), "count"], input=json.dumps({"session_id": "n", "cwd": str(proj)}),
+                           capture_output=True, text=True, env=dict(os.environ, CLAUDE_PLUGIN_ROOT=str(ROOT / "plugin")))
+    finally:
+        os.chmod(proj / ".cairn", 0o700)
+        os.chmod(d, 0o700)
+    assert r.returncode == 0 and r.stderr == ""

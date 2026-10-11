@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -u
 if [ "${1:-}" = --selftest ]; then
 p=0;f=0;t(){ "$@"&&p=$((p+1))||f=$((f+1)); }
 t bash -n "$0"
@@ -22,7 +22,7 @@ IFS=$'\t' read -r si cwd tp <<<"$(jq -r '[.session_id,.cwd,.transcript_path]|map
 [[ -n $si && -n $cwd ]] || exit 0
 grep -qsF '<!-- cairn:start -->' "$cwd/CLAUDE.md" || exit 0
 d=$cwd/.cairn/proposals;mkdir -p "$d" 2>&- || exit 0
-[ -f "$d/../.gitignore" ] || echo '*' >"$d/../.gitignore" 2>&-
+[ -f "$d/../.gitignore" ] || echo '*' 2>/dev/null >"$d/../.gitignore"
 case ${1:-} in
 record) [ -n "$tp" ] && python3 "${CLAUDE_PLUGIN_ROOT:-}/skills/task-assets/assets/proposals.py" record --root "$cwd" --session "$si" --transcript "$tp" &>/dev/null;;
 count) n=$(find "$d" -name '*.json' -mtime -30 -exec grep -lF '"status":"queued"' {} + 2>&-|wc -l);n=$((n+0))
