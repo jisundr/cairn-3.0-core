@@ -224,9 +224,11 @@ def record(root, session, transcript):
     with open(transcript, "rb") as fh:
         fh.seek(offset)
         chunk = fh.read(SCAN_MAX)
-    end = chunk.rfind(b"\n") + 1
-    if end == 0 and len(chunk) < SCAN_MAX and offset + len(chunk) >= size:
-        end = len(chunk)
+        end = chunk.rfind(b"\n") + 1
+        if end == 0 and len(chunk) == SCAN_MAX:  # one line over the cap: skip it
+            rest = fh.readline()
+            if rest.endswith(b"\n"):
+                chunk, end = b"", SCAN_MAX + len(rest)
     text = chunk[:end].decode("utf-8", errors="replace")
     signals = list(extract(text.splitlines(), stamp(now())))
     signals.sort(key=lambda s: s["type"] != "correction")
