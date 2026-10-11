@@ -445,3 +445,91 @@ def test_failure_stores_command_name_and_first_argument_only(proj):
     (e,) = queue(proj)
     assert e["signal"] == "make deploy"
     assert e["context"] == "no target | worked: make build"
+
+
+NEW_LINE = "- Use tabs | evidence: correction:2026-10-11 asked once"
+
+
+def rules_check(proj):
+    r = subprocess.run(["python3", str(ASSETS / "rules-check.py"), "--root", str(proj)],
+                       capture_output=True, text=True)
+    assert r.returncode == 0 and "0 malformed" in r.stdout, r.stdout
+    return r
+
+
+def apply_to(proj, content, link=False, mode=None):
+    """Write content as standards.md (or as a symlink target), queue one signal, apply NEW_LINE."""
+    path = proj / ".harness/standards.md"
+    path.unlink()
+    if link:
+        real = proj / "shared-standards.md"
+        real.write_bytes(content)
+        path.symlink_to(real)
+    else:
+        path.write_bytes(content)
+        if mode:
+            os.chmod(path, mode)
+    record(proj, [user("No, use tabs")])
+    (e,) = queue(proj)
+    r = apply(proj, e["id"], NEW_LINE)
+    assert r.returncode == 0, r.stdout
+    return (proj / "shared-standards.md") if link else path
+
+
+def delta(old, new):
+    o, n = old.split(b"\n"), new.split(b"\n")
+    assert len(n) == len(o) + 1
+    for i in range(len(n)):
+        if n[i] != o[i]:
+            assert n[i + 1:] == o[i:] and n[:i] == o[:i]
+            return n[i]
+    return n[-1]
+
+
+def test_apply_keeps_crlf_files_crlf(proj):
+    old = STANDARDS.replace("\n", "\r\n").encode()
+    new = apply_to(proj, old).read_bytes()
+    assert delta(old, new) == NEW_LINE.encode() + b"\r"
+    assert new.count(b"\r") == old.count(b"\r") + 1 and new.count(b"\n") == old.count(b"\n") + 1
+    rules_check(proj)
+
+
+def test_apply_leaves_unicode_line_separators_inside_a_bullet(proj):
+    odd = "- Name files\u0085with\x0ctabs | evidence: path:x"
+    old = (HEADER + "## Naming\n" + odd + "\n- Name tests test_*.py\n\n## Gates\n- run the gate\n").encode()
+    new = apply_to(proj, old).read_bytes()
+    assert delta(old, new) == NEW_LINE.encode()
+    assert odd.encode() in new.split(b"\n")
+    rules_check(proj)
+
+
+def test_apply_without_trailing_newline_keeps_none(proj):
+    old = (HEADER + "## Naming\n- Use kebab-case names\n- Name tests test_*.py").encode()
+    new = apply_to(proj, old).read_bytes()
+    assert not new.endswith(b"\n")
+    assert new.split(b"\n")[:-1] == old.split(b"\n") and new.split(b"\n")[-1] == NEW_LINE.encode()
+    rules_check(proj)
+
+
+def test_apply_midfile_without_trailing_newline_is_one_added_line(proj):
+    old = (HEADER + "## Naming\n- Use kebab-case names\n\n## Other\n- last bullet").encode()
+    new = apply_to(proj, old).read_bytes()
+    assert not new.endswith(b"\n") and delta(old, new) == NEW_LINE.encode()
+    rules_check(proj)
+
+
+def test_apply_updates_symlink_target_and_keeps_link(proj):
+    old = STANDARDS.encode()
+    real = apply_to(proj, old, link=True)
+    link = proj / ".harness/standards.md"
+    assert link.is_symlink() and link.resolve() == real.resolve()
+    assert delta(old, real.read_bytes()) == NEW_LINE.encode()
+    assert not list(proj.glob(".tmp*")) and not list((proj / ".harness").glob(".tmp*"))
+    rules_check(proj)
+
+
+def test_apply_lf_file_diff_is_one_line_and_mode_kept(proj):
+    old = STANDARDS.encode()
+    new = apply_to(proj, old, mode=0o640).read_bytes()
+    assert delta(old, new) == NEW_LINE.encode() and (proj / ".harness/standards.md").stat().st_mode & 0o777 == 0o640
+    rules_check(proj)

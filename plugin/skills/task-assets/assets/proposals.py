@@ -16,7 +16,9 @@ import importlib.util
 import json
 import os
 import re
+import stat
 import sys
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -337,6 +339,48 @@ def refuse(reason):
     return 1
 
 
+def split_physical(data):
+    """Physical lines of a file: split on b"\\n" only. Returns (lines, ends_with_newline)."""
+    parts = data.split(b"\n")
+    if parts[-1] == b"":
+        return parts[:-1], True
+    return parts, False
+
+
+def physical_text(raw):
+    return raw.decode("utf-8", errors="replace").rstrip("\r")
+
+
+def insert_position(text, heading):
+    """Index at which a new bullet goes in section `heading`, or a refusal reason."""
+    at = None
+    fenced = False
+    for i, raw in enumerate(text):
+        if raw.lstrip().startswith("```"):
+            fenced = not fenced
+        elif not fenced and raw.rstrip() == heading:
+            at = i
+            break
+    if at is None:
+        return "section not found: " + heading
+    last, fenced, j = None, False, at + 1
+    while j < len(text):
+        raw = text[j]
+        if raw.lstrip().startswith("```"):
+            fenced = not fenced
+        elif not fenced and raw.startswith("#"):
+            break
+        if not fenced and raw.startswith("- "):
+            last = j
+        j += 1
+    if last is None:
+        return at + 1 + (1 if at + 1 < len(text) and not text[at + 1].strip() else 0)
+    pos = last + 1
+    while pos < len(text) and text[pos][:1] in (" ", "\t") and text[pos].strip():
+        pos += 1
+    return pos
+
+
 def cmd_apply(root, pid, fname, section, line):
     directory = qdir(root)
     entry = load(directory / (pid + ".json"))
@@ -361,45 +405,35 @@ def cmd_apply(root, pid, fname, section, line):
     path = Path(root) / ".harness" / name
     if not path.is_file():
         return refuse("missing " + str(path))
-    old = path.read_text(encoding="utf-8").splitlines()
-    if line in old:
+    target = path.resolve()
+    lines, ends = split_physical(target.read_bytes())
+    text = [physical_text(x) for x in lines]
+    if line in text:
         return refuse("line already present")
-    if len(old) + 1 > HARNESS_CAPS[name]:
+    if len(lines) + 1 > HARNESS_CAPS[name]:
         return refuse("%s is at its %d-line cap" % (name, HARNESS_CAPS[name]))
-    at = None
-    fenced = False
-    for i, raw in enumerate(old):
-        if raw.lstrip().startswith("```"):
-            fenced = not fenced
-        elif not fenced and raw.rstrip() == heading:
-            at = i
-            break
-    if at is None:
-        return refuse("section not found: " + heading)
-    last, fenced, j = None, False, at + 1
-    while j < len(old):
-        raw = old[j]
-        if raw.lstrip().startswith("```"):
-            fenced = not fenced
-        elif not fenced and raw.startswith("#"):
-            break
-        if not fenced and raw.startswith("- "):
-            last = j
-        j += 1
-    if last is not None:
-        pos = last + 1
-        while pos < len(old) and old[pos][:1] in (" ", "\t") and old[pos].strip():
-            pos += 1
-    else:
-        pos = at + 1 + (1 if at + 1 < len(old) and not old[at + 1].strip() else 0)
-    new = old[:pos] + [line] + old[pos:]
-    tmp = path.with_name(".tmp." + name)
-    tmp.write_text("\n".join(new) + "\n", encoding="utf-8")
-    back = tmp.read_text(encoding="utf-8").splitlines()
-    if len(back) != len(old) + 1 or back[:pos] + back[pos + 1:] != old or back[pos] != line:
-        tmp.unlink()
-        return refuse("write verification failed")
-    os.replace(tmp, path)
+    pos = insert_position(text, heading)
+    if isinstance(pos, str):
+        return refuse(pos)
+    terminated = lines if ends else lines[:-1]
+    crlf = sum(x.endswith(b"\r") for x in terminated) * 2 > len(terminated)
+    new = list(lines)
+    if pos == len(lines) and not ends and crlf and new:
+        new[-1] += b"\r"  # the old last line gains its terminator, nothing else moves
+    new.insert(pos, line.encode("utf-8") + (b"\r" if crlf else b""))
+    out = b"\n".join(new) + (b"\n" if ends else b"")
+    fd, tmp = tempfile.mkstemp(prefix=".tmp.", suffix="." + name, dir=str(target.parent))
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(out)
+        os.chmod(tmp, stat.S_IMODE(target.stat().st_mode))
+        back, _ = split_physical(Path(tmp).read_bytes())
+        if len(back) != len(lines) + 1 or back[pos] != new[pos] or back[:pos] + back[pos + 1:] != new[:pos] + new[pos + 1:]:
+            return refuse("write verification failed")
+        os.replace(tmp, target)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
     entry.update(status="approved", resolved=stamp(now()), applied_to="%s:%d" % (name, pos + 1))
     save(directory, entry)
     print("applied to %s:%d" % (name, pos + 1))
