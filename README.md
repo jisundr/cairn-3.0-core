@@ -75,7 +75,7 @@ Day-to-day work needs no command: once set up, just ask Claude for a change and 
    - It asks whether to copy its task and product templates into `docs/`. "No" is fine; cairn has its own copies.
    - It suggests `.gitignore` lines for task folders, for you to add if you want.
 2. **Commit what setup wrote.** `.harness/` is your team's from here on.
-3. **Ask for a change in plain words**, for example: *"Add an `rm <n>` command that deletes a todo, with a test."* cairn takes the default path: `builder` makes the change and runs your tests, `reviewer` checks the diff, and you get a summary with any review notes. Nothing is committed or pushed until you say so. On a small Python project, that run took 8 turns and about $0.30.
+3. **Ask for a change in plain words**, for example: *"Add an `rm <n>` command that deletes a todo, with a test."* cairn takes the default path: `builder` makes the change and runs your tests, `reviewer` checks the diff, and you get a summary with any review notes. Nothing is committed or pushed until you say so.
 4. **Bigger change?** When it meets the [escalation trigger](#two-paths-cheap-by-default), cairn writes requirements and a plan for you to approve before building, and asks you if the call is unclear.
 
 If something seems off, run `/cairn-doctor`.
