@@ -10,5 +10,5 @@ docs/tasks/*
 !docs/tasks/_template/
 ```
 
-4. Archive folder, per `tasks/archive.md`. `.harness/workflow.md` absent → skip with a note. `## Archive` already has `- Path:` → report it and change nothing. Else run `find docs -maxdepth 2 -type d -iname '*archive*'`: one hit → propose it; several → list them and ask which; none → propose the default. The user accepts or types a path, validated per that file's Setting; no answer → nothing is written and the default applies. Show the section, then append it to `.harness/workflow.md`. The folder itself is not created here.
+4. Archive folder, per `tasks/archive.md`. `.harness/workflow.md` absent → skip with a note. `## Archive` already has `- Path:` → report it and change nothing. Else run `find docs -maxdepth 2 -type d -iname '*archive*' -not -path 'docs/tasks/*'`, which skips task folders: one hit → propose it; several → list them and ask which; none → propose the default, `docs/tasks/.archived/`. The user accepts or types a path, validated per that file's Setting; no answer → nothing is written and the default applies. Show the section, then append it to `.harness/workflow.md`. The folder itself is not created here.
 5. Report what was created and what already existed. A re-run changes nothing it already made.
