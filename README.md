@@ -53,14 +53,14 @@ Rules without an evidence line are legacy. Doctor lists them and does not fail t
 
 | Command | What it does |
 |---|---|
-| `/cairn-setup` | Adds the marker to `CLAUDE.md`, then drafts `.harness/` rules for you to confirm. `--local` writes your personal preferences; `--track <label>` / `--untrack <label>` toggles ledger tracking. |
+| `/cairn-setup [<path>]` | Adds the marker to `CLAUDE.md`, then drafts `.harness/` rules for you to confirm. `--local` writes your personal preferences; `--track <label>` / `--untrack <label>` toggles ledger tracking. A `<path>` (needs `.harness/` already) drafts only rules scoped to that file or folder, with no marker and no templates. |
 | `/cairn-doctor` | Read-only health check: version, marker, harness rules, `.cairn/`, roster, local preferences, dependencies, task folders, release config. |
 | `/cairn-triage` | Sorts task folders by stage. |
 | `/cairn-research <topic>` | Investigates a topic with parallel subagents into the active task folder. |
 | `/cairn-review-pr <url>` | Reviews a PR with cairn's security checklist; drafts first, posts only when you confirm. |
 | `/cairn-retro` | Proposes harness updates and ADR candidates from this session's evidence. |
-| `/cairn-mc` | Opens the local cost dashboard. |
-| `/cairn-release rc\|final` | Cuts an rc tag or a final release. |
+| `/cairn-mc` | Opens the local dashboard (cost, plus a task board) at `127.0.0.1:4317`. |
+| `/cairn-release rc\|final [major\|minor\|patch\|X.Y.Z]` | Cuts an rc tag or a final release. |
 | `/cairn-teardown` | Removes the marker and `.cairn/`, and reports anything left behind. |
 
 Day-to-day work needs no command: once set up, just ask Claude for a change and cairn routes it.
@@ -118,7 +118,7 @@ Every artifact cairn ships falls into exactly one of four load classes, tracked 
 
 ## Seeing what it actually costs
 
-Run `/cairn-mc` to start a local dashboard at `http://127.0.0.1:<port>` showing exactly what your Claude Code sessions have cost — tokens and dollars, broken down by agent, model, skill, tool, and MCP call — with drill-down into any session's real transcript to verify the numbers yourself. It's local-only: no accounts, no cloud sync, nothing leaves your machine.
+Run `/cairn-mc` to start a local dashboard at `http://127.0.0.1:4317` (the port must be free) showing exactly what your Claude Code sessions have cost — tokens and dollars, broken down by agent, model, skill, tool, and MCP call — with drill-down into any session's real transcript to verify the numbers yourself. It's local-only: no accounts, no cloud sync, no telemetry. The one outside call is the task board's optional `gh pr list` check for merged PRs. It also shows your task folders; stop it by ending the background task the command reports.
 
 ## What cairn writes in your project
 
