@@ -28,6 +28,10 @@ Then, in the project you want cairn to work in, run `/cairn-setup`.
 
 Run `/cairn-doctor` to see which of these it finds.
 
+## Upgrading from 3.0
+
+Update the plugin; there are no steps and no files to change. Your `.harness/` is untouched. New in 3.1: `/cairn-retro` offers an architectural decision from the session as an ADR candidate, and on your approval `scribe` writes it to `docs/decisions/`. `docs/decisions/` is created only when you approve your first ADR. The full note is in [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Upgrading from 2.0
 
 Your `.harness/` needs nothing: every rule file works as written. cairn never rewrites your `.harness/` without your approval, and an approved edit adds or replaces one line; files are never regenerated. `/cairn-mc` and its hooks are unchanged; mission-control stays in this repo for 3.0.0.
@@ -43,20 +47,20 @@ cairn 3.0 installs from this repository under the same marketplace name, so unin
 
 New in 3.0: rules can carry evidence and an `applies when:` trigger; `/cairn-doctor` reports each rule as verified, stale, unverifiable or legacy; your corrections are queued as rule candidates that `/cairn-retro` shows you, and nothing is applied without your approval; `STATE.md` has a published schema. A 2.0 `STATE.md` validates unchanged when its frontmatter stays within the 1,024 B cap and it has `goal` and `key_info`; one over the cap, without frontmatter, or missing `goal` or `key_info` reports an error, and [`docs/schemas/state-v1.md`](docs/schemas/state-v1.md) gives the one-line fix for each.
 
-Rules without an evidence line are legacy. Doctor lists them and does not fail them, and cairn never rewrites them without your approval; add evidence when a rule is next edited, or leave it. Your first session after the update prints `cairn updated 0.51.16 -> 3.0.0` once. That notice is hook output, which reaches Claude as context, so you see it only if Claude relays it. It ends with advice to run `/cairn-setup` or `/cairn-doctor`; the advice is optional, and `/cairn-setup` on an existing harness only inserts or annotates lines you approve. cairn 3.0 documents Python 3.11 (CI runs 3.11). The full note is in [`CHANGELOG.md`](CHANGELOG.md).
+Rules without an evidence line are legacy. Doctor lists them and does not fail them, and cairn never rewrites them without your approval; add evidence when a rule is next edited, or leave it. Your first session after the update prints `cairn updated <old> -> <new>` once (for example `0.51.16 -> 3.0.0`). That notice is hook output, which reaches Claude as context, so you see it only if Claude relays it. It ends with advice to run `/cairn-setup` or `/cairn-doctor`; the advice is optional, and `/cairn-setup` on an existing harness only inserts or annotates lines you approve. cairn documents Python 3.11 (CI runs 3.11). The full note is in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `/cairn-setup` | Adds the marker to `CLAUDE.md`, then drafts `.harness/` rules for you to confirm. `--local` writes your personal preferences. |
-| `/cairn-doctor` | Read-only health check: version, marker, harness, dependencies. |
+| `/cairn-setup [<path>]` | Adds the marker to `CLAUDE.md`, then drafts `.harness/` rules for you to confirm. `--local` writes your personal preferences; `--track <label>` / `--untrack <label>` toggles ledger tracking. A `<path>` (needs `.harness/` already) drafts only rules scoped to that file or folder, with no marker and no templates. |
+| `/cairn-doctor` | Read-only health check: version, marker, harness rules, `.cairn/`, roster, local preferences, dependencies, task folders, release config. |
 | `/cairn-triage` | Sorts task folders by stage. |
 | `/cairn-research <topic>` | Investigates a topic with parallel subagents into the active task folder. |
 | `/cairn-review-pr <url>` | Reviews a PR with cairn's security checklist; drafts first, posts only when you confirm. |
-| `/cairn-retro` | Proposes harness updates from this session's evidence. |
-| `/cairn-mc` | Opens the local cost dashboard. |
-| `/cairn-release rc\|final` | Cuts an rc tag or a final release. |
+| `/cairn-retro` | Proposes harness updates and ADR candidates from this session's evidence. |
+| `/cairn-mc` | Opens the local dashboard (cost, plus a task board) at `127.0.0.1:4317`. |
+| `/cairn-release rc\|final [major\|minor\|patch\|X.Y.Z]` | Cuts an rc tag or a final release. |
 | `/cairn-teardown` | Removes the marker and `.cairn/`, and reports anything left behind. |
 
 Day-to-day work needs no command: once set up, just ask Claude for a change and cairn routes it.
@@ -71,7 +75,7 @@ Day-to-day work needs no command: once set up, just ask Claude for a change and 
    - It asks whether to copy its task and product templates into `docs/`. "No" is fine; cairn has its own copies.
    - It suggests `.gitignore` lines for task folders, for you to add if you want.
 2. **Commit what setup wrote.** `.harness/` is your team's from here on.
-3. **Ask for a change in plain words**, for example: *"Add an `rm <n>` command that deletes a todo, with a test."* cairn takes the default path: `builder` makes the change and runs your tests, `reviewer` checks the diff, and you get a summary with any review notes. Nothing is committed or pushed until you say so. On a small Python project, that run took 8 turns and about $0.30.
+3. **Ask for a change in plain words**, for example: *"Add an `rm <n>` command that deletes a todo, with a test."* cairn takes the default path: `builder` makes the change and runs your tests, `reviewer` checks the diff, and you get a summary with any review notes. Nothing is committed or pushed until you say so.
 4. **Bigger change?** When it meets the [escalation trigger](#two-paths-cheap-by-default), cairn writes requirements and a plan for you to approve before building, and asks you if the call is unclear.
 
 If something seems off, run `/cairn-doctor`.
@@ -114,7 +118,7 @@ Every artifact cairn ships falls into exactly one of four load classes, tracked 
 
 ## Seeing what it actually costs
 
-Run `/cairn-mc` to start a local dashboard at `http://127.0.0.1:<port>` showing exactly what your Claude Code sessions have cost — tokens and dollars, broken down by agent, model, skill, tool, and MCP call — with drill-down into any session's real transcript to verify the numbers yourself. It's local-only: no accounts, no cloud sync, nothing leaves your machine.
+Run `/cairn-mc` to start a local dashboard at `http://127.0.0.1:4317` (the port must be free) showing exactly what your Claude Code sessions have cost — tokens and dollars, broken down by agent, model, skill, tool, and MCP call — with drill-down into any session's real transcript to verify the numbers yourself. It's local-only: no accounts, no cloud sync, no telemetry. The one outside call is the task board's optional `gh pr list` check for merged PRs. It also shows your task folders; stop it by ending the background task the command reports.
 
 ## What cairn writes in your project
 
@@ -130,6 +134,7 @@ In a consuming project, cairn writes **only** the paths below — everything els
 | `docs/tasks/_template/`, `docs/product/_template/` | `/cairn-setup`, only if you say yes | your project's — editable copies of cairn's templates |
 | `.harness/local/` | `/cairn-setup --local`, on confirmation | this developer's — never committed |
 | `docs/tasks/<slug>/` | escalated path only | your project's |
+| `docs/decisions/NNNN-title.md` | an ADR you approved in `/cairn-retro`; `scribe` writes it, and `docs/decisions/` is created only then | your project's |
 | `.cairn/` | runtime state, including `.cairn/proposals/`: your corrections queued as rule candidates, stored as local text only, reviewed with `/cairn-retro` | cairn's, and self-ignoring |
 | `~/.claude/cairn/known-projects.json`, `pricing-check-state.json` | end of each session in a cairn project | cairn's — the list of projects `/cairn-mc` shows, and when its pricing table was last checked |
 | `~/.claude/cairn/.jq-hint` | first session without `jq` | cairn's — an empty flag so the missing-`jq` hint shows only once |
