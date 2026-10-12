@@ -1,6 +1,6 @@
-# CLAUDE.md — cairn-2.0-mission-control
+# CLAUDE.md — mission-control
 
-This repo is the standalone codebase for cairn mission control: the token-metering revamp plus the future kanban feature. It's consumed as a git submodule by [cairn-2.0](https://github.com/jisundr/cairn-2.0) at `mission-control/`.
+This directory is the source of cairn's mission control: token metering plus the task board. It lives in this repo as a plain directory; `python tools/sync_mission_control.py` copies it to `plugin/mission-control/`, which is what ships.
 
 ## Scope
 
