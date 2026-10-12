@@ -31,7 +31,7 @@ Unlike heavier agent-orchestration frameworks that add persistent scaffolding, d
 
 ## Capabilities and Constraints
 
-- Writes only a fixed, disclosed set of paths in a consuming project (marker block, `.harness/*.md`, `.harness/local/`, `docs/tasks/<slug>/`, `.cairn/`, and the files a task actually asks it to change) — never `.claude/settings*`, agents/skills/commands/hooks directories, the project's own `.gitignore`, CI config, manifests, lockfiles, or git internals.
+- Writes only a fixed, disclosed set of paths in a consuming project (marker block, `.harness/*.md`, `.harness/local/`, `docs/tasks/<slug>/`, the configured task archive folder, `.cairn/`, and the files a task actually asks it to change) — never `.claude/settings*`, agents/skills/commands/hooks directories, the project's own `.gitignore`, CI config, manifests, lockfiles, or git internals.
 - No accounts, no hosted service, no telemetry — everything runs locally inside the user's own Claude Code session.
 - Pre-1.0 (current version in `plugin/.claude-plugin/plugin.json`), single-maintainer, open source on GitHub — no enterprise/paid tier.
 
