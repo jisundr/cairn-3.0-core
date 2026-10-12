@@ -40,6 +40,7 @@ def test_non_rules_are_skipped(tmp_path):
     body = (
         "## Gates\n- python tools/budget.py clean\n\n"
         "## Release\n- Tag: v{version}\n\n"
+        "## Archive\n- Path: docs/tasks-archive/\n\n"
         "## Naming\n```\n- inside fence\n```\nplain prose\n- real rule\n"
     )
     root = harness(tmp_path, workflow=body)

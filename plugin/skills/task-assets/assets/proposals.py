@@ -47,7 +47,7 @@ BLOCK = 1 << 20
 SEEN_MAX = 10
 JACCARD = 0.7
 HARNESS_CAPS = {"architecture.md": 40, "standards.md": 40, "environment.md": 30, "workflow.md": 30}
-BLOCKED_SECTIONS = ("gates", "release")
+BLOCKED_SECTIONS = ("gates", "release", "archive")
 FIELDS = ("schema", "id", "type", "signal", "context", "status", "session", "time",
           "last_seen", "count", "seen", "resolved", "applied_to", "note")
 CUE_RE = re.compile(
@@ -726,7 +726,7 @@ def insert_position(text, heading):
         return "section not found: " + heading
     own = len(heading) - len(heading.lstrip("#"))
     if any(v in BLOCKED_SECTIONS for k, v in trail.items() if k < own):
-        return "section is inside Gates or Release"
+        return "section is inside Gates, Release or Archive"
     last, fenced, j = None, False, at + 1
     while j < len(text):
         raw = text[j]
@@ -761,7 +761,7 @@ def cmd_apply(root, pid, fname, section, line):
         return refuse("line must be one physical bullet starting with '- '")
     heading = section.strip()
     if not heading.startswith("##") or heading.lstrip("#").strip().lower().split(" ")[0] in BLOCKED_SECTIONS:
-        return refuse("section must be a ## heading other than Gates or Release")
+        return refuse("section must be a ## heading other than Gates, Release or Archive")
     if not EVIDENCE_RE.search(line):
         return refuse("line needs typed evidence: path:, cmd: or correction:")
     checker = rules_checker()

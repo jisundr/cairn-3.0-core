@@ -16,7 +16,7 @@ from datetime import date
 from pathlib import Path
 
 FILES = ("architecture.md", "standards.md", "environment.md", "workflow.md")
-SKIP_RE = re.compile(r"(gates|release)\b")
+SKIP_RE = re.compile(r"(gates|release|archive)\b")
 PRECOND_RE = re.compile(r"-\s+\[(blocking|warning)\]", re.I)
 KINDS = ("research", "build", "review")
 EV_DELIM = " | evidence: "

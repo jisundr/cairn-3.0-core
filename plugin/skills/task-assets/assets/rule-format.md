@@ -6,7 +6,7 @@ A rule is one bullet on one line in `.harness/{architecture,standards,environmen
 
 Both annotations are optional. The delimiters are the literal ` | evidence: ` and ` | applies when: `, in that order; a `|` elsewhere in the text is fine. A rule with neither is a 2.0 rule: valid, loads always, reported as legacy.
 
-Not rules, never annotated: the `>` header, headings, non-bullets, bullets under `## Gates` or `## Release`, typed preconditions, fenced blocks, anything under `.harness/local/`.
+Not rules, never annotated: the `>` header, headings, non-bullets, bullets under `## Gates`, `## Release` or `## Archive`, typed preconditions, fenced blocks, anything under `.harness/local/`.
 
 ## Evidence (one item)
 

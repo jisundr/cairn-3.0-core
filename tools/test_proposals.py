@@ -281,9 +281,10 @@ OK = "- ok" + EV
     ({"line": "- Use kebab-case names" + EV}, "already present"),
     ({"line": "- x | evidence: correction:2026-13-45 bad"}, "malformed"),
     ({"line": OK, "section": "## Nope"}, "section not found"),
-    ({"line": OK, "section": "## Gates"}, "Gates or Release"),
-    ({"line": OK, "section": "## Release"}, "Gates or Release"),
-    ({"line": OK, "section": "### Sub"}, "inside Gates or Release"),
+    ({"line": OK, "section": "## Gates"}, "Gates, Release or Archive"),
+    ({"line": OK, "section": "## Release"}, "Gates, Release or Archive"),
+    ({"line": OK, "section": "## Archive"}, "Gates, Release or Archive"),
+    ({"line": OK, "section": "### Sub"}, "inside Gates, Release or Archive"),
     ({"line": OK, "file": "other.md"}, "must be one of"),
     ({"line": OK, "file": "../x/standards.md"}, "must be one of"),
 ])

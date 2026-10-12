@@ -1,10 +1,11 @@
 ---
-description: Sorts task folders.
+description: Sorts task folders; on request, archives closed ones after you confirm.
+argument-hint: "[archive]"
 ---
 
-Read-only; never writes or blocks. Per-folder facts: `/cairn-doctor` step 8.
+Read-only except step 5, which moves a folder only after a yes; never blocks. Per-folder facts: `/cairn-doctor` step 8.
 
-1. **Scan** — `Glob` `docs/tasks/**/STATE.md` (not `Grep`: `docs/tasks/` is gitignored), skipping `_template/`. Read each one's `key_info` and last `YYYY-MM-DD:` log line; none → folder-name date. No `STATE.md` (an older `review` folder, `DRAFT.md` only): one trailing line.
+1. **Scan** — `Glob` `docs/tasks/**/STATE.md` (not `Grep`: `docs/tasks/` is gitignored), skipping `_template/` and the archive folder (step 5). Read each one's `key_info` and last `YYYY-MM-DD:` log line; none → folder-name date. No `STATE.md` (an older `review` folder, `DRAFT.md` only): one trailing line.
 2. **Branching** — `.harness/workflow.md`'s `## Branching` says commits go straight to main or no feature branches → direct-commit. Section absent → not.
 3. **Classify** — first match wins:
    - **Needs attention now** — `needs-human` or `stalled` in `key_info` (`unattended.md` Ending).
@@ -13,3 +14,4 @@ Read-only; never writes or blocks. Per-folder facts: `/cairn-doctor` step 8.
    - **Still in progress** — last log date within 14 days of the newest across all folders.
    - **Looks abandoned** — older than that.
 4. **Report** — five headings in that order, "none" if empty; name the anchor date. One line per folder, sub-tasks indented: name, deciding marker or last log date, and for Ready to close whether `key_info` or `gh` decided. No full `key_info`.
+5. **Archive** — only with the `archive` argument or when the user asks after the report: follow `${CLAUDE_PLUGIN_ROOT}/skills/task-assets/assets/tasks/archive.md`.
