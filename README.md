@@ -28,6 +28,10 @@ Then, in the project you want cairn to work in, run `/cairn-setup`.
 
 Run `/cairn-doctor` to see which of these it finds.
 
+## Upgrading from 3.0
+
+Update the plugin; there are no steps and no files to change. Your `.harness/` is untouched. New in 3.1: `/cairn-retro` offers an architectural decision from the session as an ADR candidate, and on your approval `scribe` writes it to `docs/decisions/`. `docs/decisions/` is created only when you approve your first ADR. The full note is in [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Upgrading from 2.0
 
 Your `.harness/` needs nothing: every rule file works as written. cairn never rewrites your `.harness/` without your approval, and an approved edit adds or replaces one line; files are never regenerated. `/cairn-mc` and its hooks are unchanged; mission-control stays in this repo for 3.0.0.
@@ -43,18 +47,18 @@ cairn 3.0 installs from this repository under the same marketplace name, so unin
 
 New in 3.0: rules can carry evidence and an `applies when:` trigger; `/cairn-doctor` reports each rule as verified, stale, unverifiable or legacy; your corrections are queued as rule candidates that `/cairn-retro` shows you, and nothing is applied without your approval; `STATE.md` has a published schema. A 2.0 `STATE.md` validates unchanged when its frontmatter stays within the 1,024 B cap and it has `goal` and `key_info`; one over the cap, without frontmatter, or missing `goal` or `key_info` reports an error, and [`docs/schemas/state-v1.md`](docs/schemas/state-v1.md) gives the one-line fix for each.
 
-Rules without an evidence line are legacy. Doctor lists them and does not fail them, and cairn never rewrites them without your approval; add evidence when a rule is next edited, or leave it. Your first session after the update prints `cairn updated 0.51.16 -> 3.0.0` once. That notice is hook output, which reaches Claude as context, so you see it only if Claude relays it. It ends with advice to run `/cairn-setup` or `/cairn-doctor`; the advice is optional, and `/cairn-setup` on an existing harness only inserts or annotates lines you approve. cairn 3.0 documents Python 3.11 (CI runs 3.11). The full note is in [`CHANGELOG.md`](CHANGELOG.md).
+Rules without an evidence line are legacy. Doctor lists them and does not fail them, and cairn never rewrites them without your approval; add evidence when a rule is next edited, or leave it. Your first session after the update prints `cairn updated <old> -> <new>` once (for example `0.51.16 -> 3.0.0`). That notice is hook output, which reaches Claude as context, so you see it only if Claude relays it. It ends with advice to run `/cairn-setup` or `/cairn-doctor`; the advice is optional, and `/cairn-setup` on an existing harness only inserts or annotates lines you approve. cairn documents Python 3.11 (CI runs 3.11). The full note is in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `/cairn-setup` | Adds the marker to `CLAUDE.md`, then drafts `.harness/` rules for you to confirm. `--local` writes your personal preferences. |
-| `/cairn-doctor` | Read-only health check: version, marker, harness, dependencies. |
+| `/cairn-setup` | Adds the marker to `CLAUDE.md`, then drafts `.harness/` rules for you to confirm. `--local` writes your personal preferences; `--track <label>` / `--untrack <label>` toggles ledger tracking. |
+| `/cairn-doctor` | Read-only health check: version, marker, harness rules, `.cairn/`, roster, local preferences, dependencies, task folders, release config. |
 | `/cairn-triage` | Sorts task folders by stage. |
 | `/cairn-research <topic>` | Investigates a topic with parallel subagents into the active task folder. |
 | `/cairn-review-pr <url>` | Reviews a PR with cairn's security checklist; drafts first, posts only when you confirm. |
-| `/cairn-retro` | Proposes harness updates from this session's evidence. |
+| `/cairn-retro` | Proposes harness updates and ADR candidates from this session's evidence. |
 | `/cairn-mc` | Opens the local cost dashboard. |
 | `/cairn-release rc\|final` | Cuts an rc tag or a final release. |
 | `/cairn-teardown` | Removes the marker and `.cairn/`, and reports anything left behind. |
@@ -130,6 +134,7 @@ In a consuming project, cairn writes **only** the paths below — everything els
 | `docs/tasks/_template/`, `docs/product/_template/` | `/cairn-setup`, only if you say yes | your project's — editable copies of cairn's templates |
 | `.harness/local/` | `/cairn-setup --local`, on confirmation | this developer's — never committed |
 | `docs/tasks/<slug>/` | escalated path only | your project's |
+| `docs/decisions/NNNN-title.md` | an ADR you approved in `/cairn-retro`; `scribe` writes it, and `docs/decisions/` is created only then | your project's |
 | `.cairn/` | runtime state, including `.cairn/proposals/`: your corrections queued as rule candidates, stored as local text only, reviewed with `/cairn-retro` | cairn's, and self-ignoring |
 | `~/.claude/cairn/known-projects.json`, `pricing-check-state.json` | end of each session in a cairn project | cairn's — the list of projects `/cairn-mc` shows, and when its pricing table was last checked |
 | `~/.claude/cairn/.jq-hint` | first session without `jq` | cairn's — an empty flag so the missing-`jq` hint shows only once |
