@@ -4,7 +4,7 @@ Used by `/cairn-triage` step 5, `/cairn-doctor` step 8 and `tasks/setup.md`.
 
 ## Setting
 
-Read `- Path:` under `## Archive` in `.harness/workflow.md`. Section or key absent → the default, `docs/tasks/.archived/`. A path that is absolute, contains `..`, or is `docs/tasks/` itself is invalid: no moves are offered, and doctor flags it.
+Read `- Path:` under `## Archive` in `.harness/workflow.md`. Section or key absent → the default, `docs/tasks/.archived/`. Normalize first: drop a leading `./`, collapse `//` to `/`, add the trailing slash. The path is invalid when it uses a character outside `A-Z a-z 0-9 . _ / -`, is absolute, contains `..`, is not under `docs/`, is `docs/tasks/` itself, names `.git`, `.claude` or `.github` as a segment, or is an existing task folder (a `docs/tasks/<name>/` with a `STATE.md`). An invalid path offers no moves, and doctor flags it.
 
 The section, as setup writes it:
 
@@ -28,9 +28,9 @@ A top-level `docs/tasks/<name>/` that triage step 3 classed Ready to close, whos
 
 1. List the archivable folders with their close dates, plus a count of Ready to close folders left alone because they closed under one month ago.
 2. Ask about each folder separately; no answer → no.
-3. On a yes: `mkdir -p <archive>`, which also creates the default folder on the first move. If `<archive>/<name>` already exists, skip the folder and say so. Else `mv docs/tasks/<name> <archive>/<name>`.
+3. On a yes: `mkdir -p "<archive>"`, which also creates the default folder on the first move. If `<archive>/<name>` already exists, skip the folder and say so. Else `mv "docs/tasks/<name>" "<archive>/<name>"`.
 4. Nothing is renamed, no `STATE.md` is edited, and no git command runs.
-5. Report what moved and how to move it back: `mv <archive>/<name> docs/tasks/`.
+5. Report what moved and how to move it back: `mv "<archive>/<name>" docs/tasks/`.
 
 ## Doctor
 
