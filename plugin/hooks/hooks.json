@@ -34,6 +34,7 @@
       {
         "hooks": [
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/stop-mc.sh\"" },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/export-tasks.sh\"", "timeout": 5 },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-marker.sh\" sweep" },
           { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/signals.sh\" record", "timeout": 5 }
         ]
