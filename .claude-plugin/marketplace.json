@@ -1,12 +1,31 @@
 {
   "name": "cairn-marketplace",
   "description": "Marketplace hosting the cairn plugin.",
-  "owner": { "name": "Jayson De los Reyes", "email": "jisun.delosreyes@gmail.com" },
+  "owner": {
+    "name": "Jayson De los Reyes",
+    "email": "jisun.delosreyes@gmail.com"
+  },
   "plugins": [
     {
       "name": "cairn",
       "source": "./plugin",
       "description": "A lean, on-demand, non-invasive development workflow for Claude Code: rules with evidence, corrections queued as candidates, nothing applied without your approval."
+    },
+    {
+      "name": "cairn-meter",
+      "source": {
+        "source": "github",
+        "repo": "jisundr/cairn-meter"
+      },
+      "description": "Token and cost metering for Claude Code sessions, with a local dashboard. Works on its own; writes a usage.json export when a project has .cairn/."
+    },
+    {
+      "name": "cairn-board",
+      "source": {
+        "source": "github",
+        "repo": "jisundr/cairn-board"
+      },
+      "description": "A read-only kanban for a project's cairn tasks, with cost per task when cairn-meter's usage export exists."
     }
   ]
 }
