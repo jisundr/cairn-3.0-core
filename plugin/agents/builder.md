@@ -1,6 +1,6 @@
 ---
 name: builder
-description: Writes code and its tests in one context — the only agent that edits application code. No test/prod split across two agents.
+description: Writes code and its tests in one context; the only agent that edits application code.
 tools: Read, Glob, Grep, Write, Edit, Bash, Skill
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: planner
-description: Escalated-path only — turns a resolved scope into a task folder and a plan that references paths and contracts, not file bodies.
+description: Escalated path only: turns a resolved scope into a task folder and a plan citing paths and contracts, not file bodies.
 tools: Read, Glob, Grep, Write, Skill
 ---
 
