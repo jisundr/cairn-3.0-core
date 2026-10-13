@@ -1,5 +1,36 @@
 # Changelog
 
+## 3.2.0 - 2026-10-13
+
+cairn 3.2 lets each project choose where closed task folders are archived. `/cairn-setup` proposes an existing archive folder or the default `docs/tasks/.archived/` and records the choice in `.harness/workflow.md`; `/cairn-triage` then offers to move closed task folders there, each one only after you say yes. Nothing moves on its own, and an existing `.harness/` upgrades untouched.
+
+### Upgrading from 3.1
+
+Update the plugin; there are no steps and no files to change. Without an `## Archive` section in `.harness/workflow.md`, the default `docs/tasks/.archived/` applies, and it is created only when you confirm your first move.
+
+### What changed
+
+- `/cairn-setup` looks under `docs/` for an existing archive folder (task folders are not candidates), proposes it or the default, and on your answer appends an `## Archive` section with a `- Path:` line to `.harness/workflow.md`. No answer writes nothing, and a re-run changes nothing.
+- `/cairn-triage archive`, or asking after the report, offers to move Ready to close folders whose close date in `STATE.md` is at least one calendar month old. Each folder is asked about separately and moved with a plain `mv`, keeping its name, `STATE.md` and drafts, so a move can be undone. Triage steps 1 to 4 are otherwise read-only as before.
+- Triage and `/cairn-doctor` skip the archive folder when scanning task folders. Doctor prints the configured path and reports it as `missing`, `not created yet` or `invalid`.
+- The archive path is checked before any move: letters, digits, `.`, `_`, `-` and `/` only, strictly under `docs/`, and never `.git`, `.claude`, `.github` or an existing task folder.
+- Rule checks and `/cairn-retro` treat the `## Archive` section like Gates and Release: its `- Path:` line is not reported as a legacy rule, and retro proposes no rules into it.
+- Docs: the mission-control `CLAUDE.md` and `README.md` drop stale 2.0 and scaffold text, and the README is synced with 3.1.
+
+### Known gaps
+
+- The mission-control dashboard still lists task folders moved to the archive folder.
+- The close date is the latest `STATE.md` log line that mentions done, closed, complete or merged, else the last log date, so a loosely worded log line can make a folder look older than it is.
+- Setting up an archive folder can push `.harness/workflow.md` past its 30-line cap.
+
+### Checks on the release commit
+
+Measured on macOS (Darwin), after the last edit before the release commit. CI's own runs on Ubuntu are not quoted here; every number below is macOS-local.
+
+- `python3 tools/budget.py` exits 0 with 11 soft-cap warnings (the same 11 as 3.1.0, with `cairn-triage.md` now at 2041 B and `cairn-doctor.md` at 1964 B against their 1500 B soft cap, and the always-loaded total at 2590 B against its 2500 B soft cap) and no errors.
+- `python3 -m pytest tools/`: 492 passed.
+- Hook selftests: all five scripts pass. `claude plugin validate . --strict` passes.
+
 ## 3.1.0 - 2026-10-12
 
 cairn 3.1 adds architecture decision records. When a session settles an architectural choice, `/cairn-retro` offers it as an ADR candidate, and on your approval `scribe` writes it to `docs/decisions/` in a short fixed structure, so the reason behind a boundary or constraint outlives the task that produced it. Nothing is written without your approval, and an existing `.harness/` upgrades untouched.
