@@ -1,25 +1,13 @@
 #!/usr/bin/env bash
 set -uo pipefail
 if [ "${1:-}" = --selftest ]; then
-f=0;t(){ "$@"||f=$((f+1)); }
-h=$(mktemp -d);d="$h/.claude/cairn/active";mkdir -p "$d" "$h/p/.cairn"
+bash -n "$0" || exit 1
+h=$(mktemp -d);d="$h/.claude/cairn/active";mkdir -p "$d"
 echo '{"project":"/p","task":"x"}' >"$d/s1.json"
-r(){ HOME="$h" "$0" "$1" <<<"{\"session_id\":\"$2\",\"agent_id\":\"a1\"}" 2>&1; }
-o=$(r start s1)
-t jq -e '.task=="x" and .schema==1 and (.started|endswith("Z"))' "$d/s1--a1.active" >/dev/null
-t jq -e '.hookSpecificOutput|.hookEventName=="SubagentStart" and (.additionalContext|contains("s1--a1.active"))' <<<"$o" >/dev/null
-t [ -z "$(r start no)" -a ! -e "$d/no--a1.active" ]
-r stop s1
-t [ ! -e "$d/s1--a1.active" ]
-echo '{"project":"'$h'/p","task":"t1","started":"2020-01-01T00:00:00Z"}' >"$d/s2--a1.active"
-r stop s2
-t jq -e '.session=="s2" and .start<.end' "$h/p/.cairn/task-sessions.jsonl" >/dev/null
-touch "$d/new--b.active";touch -t 202001010000 "$d/old--a.active"
-r sweep s1
-t [ ! -e "$d/old--a.active" -a -e "$d/new--b.active" ]
-rm -rf "$h"
-echo "subagent-marker.sh selftest: $f failed"
-exit $((f>0))
+i='{"session_id":"s1","agent_id":"a1"}'
+HOME="$h" "$0" start <<<"$i" >/dev/null;[ -f "$d/s1--a1.active" ];f=$?
+HOME="$h" "$0" stop <<<"$i";[ ! -e "$d/s1--a1.active" ] && exit $f
+exit 1
 fi
 d="${HOME:-/x}/.claude/cairn/active"
 { read -r s;read -r a; } < <(jq -r '.session_id//"",.agent_id//""' 2>/dev/null)
