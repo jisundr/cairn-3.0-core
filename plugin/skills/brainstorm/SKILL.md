@@ -1,6 +1,6 @@
 ---
 name: brainstorm
-description: Explores an idea too unformed to scope, or on request, and names a doc for scribe to write.
+description: Explores an idea too unformed to scope (or on request) and names a doc for scribe to write.
 ---
 
 # cairn:brainstorm
