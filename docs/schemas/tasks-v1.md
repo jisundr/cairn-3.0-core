@@ -80,7 +80,7 @@ Readers ignore unknown keys, and a marker without `schema` or `started` is an ol
 ## Reader guidance
 
 - **Missing file:** core has not exported for the project yet, or is not installed. Show an empty state that names core; do not fail.
-- **Larger `schema` than known:** read best-effort and say so.
+- **Larger `schema` than known:** a reader that sees a larger `schema` than it knows should say so, and may refuse it rather than read it partially. Within a known schema, readers ignore unknown keys.
 - **Cost per task:** sum `cost_usd` over the task's sessions in `usage.json`, matched on `session_id`.
   - A session that appears under several tasks is shown as `shared` for each; its cost is not split.
   - A task with any session whose `cost_usd` is null, or with a session missing from `usage.json`, shows `unknown`.
