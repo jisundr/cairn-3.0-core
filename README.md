@@ -15,6 +15,17 @@ Think of cairn as a considerate guest in your project: it reads everything only 
 
 Then, in the project you want cairn to work in, run `/cairn-setup`.
 
+### Companions
+
+Cost metering and the task board are moving into their own plugins, in the same marketplace. Each works without the other:
+
+```
+/plugin install cairn-meter@cairn-marketplace
+/plugin install cairn-board@cairn-marketplace
+```
+
+`cairn-meter` meters tokens and cost with a local dashboard; `cairn-board` is a read-only kanban of your task folders and shows cost per task when `cairn-meter` is installed. `/cairn-mc` is deprecated: it stays for one 3.x release and is removed in a later major.
+
 ### Requirements
 
 | Tool | Needed for | Without it |
@@ -59,7 +70,7 @@ Rules without an evidence line are legacy. Doctor lists them and does not fail t
 | `/cairn-research <topic>` | Investigates a topic with parallel subagents into the active task folder. |
 | `/cairn-review-pr <url>` | Reviews a PR with cairn's security checklist; drafts first, posts only when you confirm. |
 | `/cairn-retro` | Proposes harness updates and ADR candidates from this session's evidence. |
-| `/cairn-mc` | Opens the local dashboard (cost, plus a task board) at `127.0.0.1:4317`. |
+| `/cairn-mc` | Deprecated, see [Companions](#companions). Opens the local dashboard (cost, plus a task board) at `127.0.0.1:4317`. |
 | `/cairn-release rc\|final [major\|minor\|patch\|X.Y.Z]` | Cuts an rc tag or a final release. |
 | `/cairn-teardown` | Removes the marker and `.cairn/`, and reports anything left behind. |
 
