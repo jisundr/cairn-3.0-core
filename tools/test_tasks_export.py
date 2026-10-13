@@ -194,6 +194,36 @@ def test_ledger_compacts_above_threshold(proj, monkeypatch):
     assert json.loads(lines[0])["end"] == "2026-10-04T08:14:00Z"
 
 
+def test_compaction_skipped_when_ledger_grows_meanwhile(proj, monkeypatch):
+    monkeypatch.setattr(te, "COMPACT_ABOVE", 3)
+    task = T + "2026-10-02-0900-build-building"
+    ledger = proj / ".cairn/task-sessions.jsonl"
+    lines = [json.dumps(rec("s", task, f"2026-10-04T08:0{i}:00Z", f"2026-10-04T08:1{i}:00Z", str(proj))) + "\n"
+             for i in range(5)]
+    ledger.write_text("".join(lines))
+    late = json.dumps(rec("late", task, "2026-10-04T09:00:00Z", "2026-10-04T09:05:00Z", str(proj))) + "\n"
+    real_merge = te.merge
+
+    def merge_then_append(recs):
+        out = real_merge(recs)
+        with open(ledger, "a") as f:  # the bash append landing mid-compaction
+            f.write(late)
+        return out
+
+    monkeypatch.setattr(te, "merge", merge_then_append)
+    te.compact(ledger)
+    assert ledger.read_text() == "".join(lines) + late
+
+
+def test_list_valued_key_info_reads_as_empty(proj):
+    folder = proj / T / "2026-10-05-0900-build-listy"
+    folder.mkdir(parents=True)
+    (folder / "STATE.md").write_text(state(key_info="[done, closed]"))
+    t = by_folder(te.build(proj))[T + "2026-10-05-0900-build-listy"]
+    assert t["key_info"] == ""
+    assert t["phase"] != "done"
+
+
 def test_pointer_sample_appends_with_session_log_start(proj, tmp_path, monkeypatch):
     home = tmp_path / "home"
     task = T + "2026-10-02-0900-build-building"

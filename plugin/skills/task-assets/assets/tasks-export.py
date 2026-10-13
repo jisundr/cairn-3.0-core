@@ -62,7 +62,9 @@ def frontmatter(text):
     for line in lines[1:end]:
         m = KEY_RE.match(line)
         if m and m.group(2).strip():
-            out[m.group(1)] = _unquote(m.group(2))
+            v = _unquote(m.group(2))
+            # list-valued key_info is invalid per state-v1: read as empty
+            out[m.group(1)] = "" if m.group(1) == "key_info" and v.startswith("[") else v
     return out, end
 
 
@@ -258,11 +260,17 @@ def sample_pointer(root, session, now):
 
 def compact(path):
     try:
+        size = path.stat().st_size
         n = len(path.read_text().splitlines())
     except OSError:
         return
     if n > COMPACT_ABOVE:
         body = "".join(json.dumps(r, separators=(",", ":")) + "\n" for r in merge(read_ledger(path)))
+        try:  # a concurrent append changed the file: skip, the next Stop retries
+            if path.stat().st_size != size:
+                return
+        except OSError:
+            return
         atomic_write(path, body)
 
 
