@@ -1,6 +1,6 @@
 ---
 name: scribe
-description: Owns documents — requirements, specs, READMEs, ADRs — via skills. Writes only inside docs/, and only where the user asked.
+description: Owns documents (requirements, specs, READMEs, ADRs) via skills. Writes only inside docs/, where the user asked.
 tools: Read, Glob, Grep, Write, Edit, Skill
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Reviews the diff only and reruns the project's verification commands; has no Write or Edit tool, so it cannot alter what it reviews.
+description: Reviews the diff only and reruns the project's verification commands; has no Write or Edit tool, so it cannot alter the diff.
 tools: Read, Glob, Grep, Bash, Skill
 ---
 

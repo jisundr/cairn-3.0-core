@@ -1,6 +1,6 @@
 ---
 name: research
-description: Fans out parallel subagents to investigate a topic and hands back findings for the main thread to write into the task folder.
+description: Fans out parallel subagents to investigate a topic; the main thread writes the findings into the task folder.
 tools: Read, Glob, Grep, Write, WebSearch, WebFetch, Agent, Skill
 ---
 
