@@ -3,6 +3,7 @@ import json
 import os
 import re
 import subprocess
+import time
 from pathlib import Path
 
 REF = Path(__file__).resolve().parent.parent / "plugin/skills/shared/reference/marker-task.md"
@@ -107,3 +108,23 @@ def test_stop_without_cairn_dir_or_started_stays_quiet(tmp_path):
     hook(tmp_path, "stop")
     rec = json.loads((proj / ".cairn/task-sessions.jsonl").read_text())
     assert rec["start"] == rec["end"]
+
+
+def test_sweep_deletes_only_markers_older_than_240_minutes(tmp_path):
+    d = active(tmp_path)
+    now = time.time()
+    ages = {"old--a.active": 241, "edge--a.active": 239, "new--a.active": 0}
+    for name, minutes in ages.items():
+        p = d / name
+        p.write_text("{}")
+        os.utime(p, (now - minutes * 60, now - minutes * 60))
+    assert hook(tmp_path, "sweep").returncode == 0
+    assert sorted(p.name for p in d.glob("*.active")) == ["edge--a.active", "new--a.active"]
+
+
+def test_start_without_session_pointer_writes_nothing_and_prints_nothing(tmp_path):
+    d = active(tmp_path)
+    r = hook(tmp_path, "start", session="nosuch")
+    assert r.returncode == 0
+    assert r.stdout == "" and r.stderr == ""
+    assert list(d.iterdir()) == []
