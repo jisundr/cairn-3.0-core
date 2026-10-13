@@ -2,6 +2,8 @@
 description: Starts the mission-control dashboard server in the background and opens it in the browser.
 ---
 
+Deprecated: mission-control moves to companions (`/plugin install cairn-meter@cairn-marketplace` for cost, `/plugin install cairn-board@cairn-marketplace` for the task board) and stays here for one 3.x release. Tell the user this before step 1.
+
 1. Start `python3 -u ${CLAUDE_PLUGIN_ROOT}/mission-control/server.py <project-root>` in the background via `Bash` with `run_in_background`, passing this session's project root as an absolute path explicitly (don't rely on the script's cwd default). The `-u` flag keeps stdout unbuffered so the readiness line in step 2 actually reaches the captured output instead of sitting in a pipe buffer. An empty or missing `.cairn/tokens.db` (no `Stop` event has fired yet) needs no special handling here — the server and frontend already render an empty state on their own.
 2. Wait for the server's own readiness line in its output, `token-metering dashboard: http://<host>:<port>`, rather than a fixed sleep.
 3. Open that URL in the default browser (`open` on macOS, `xdg-open` on Linux, `start` on Windows — pick per platform).

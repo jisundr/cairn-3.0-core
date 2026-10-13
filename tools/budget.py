@@ -109,7 +109,7 @@ def headroom(measured, hard, unit="B"):
 IGNORED_DIR_PARTS = (".git", "__pycache__", ".pytest_cache", "node_modules")
 
 # Paths the gate does not walk. Both are the same mission-control sources.
-_MC_REASON = "decided 2026-10-11; stays in core for 3.0.0"
+_MC_REASON = "deprecated: companions cairn-meter and cairn-board replace it; stays for one 3.x release, removed in a later major"
 GATE_EXCLUDED = {
     "mission-control": _MC_REASON,
     "plugin/mission-control": _MC_REASON,
